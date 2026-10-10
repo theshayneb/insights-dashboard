@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.5] - 2026-10-10
+
+### Added
+- Dashboards for any part of the vault: pick one at the top left, or "New dashboard…" for the notes with a tag, in a folder, or all notes. Each dashboard keeps its own choices (what it tracks and compares, filters, cards, colors). Settings → Dashboards lists them, with "Reset layout" and remove.
+- Linked notes: a property that links to notes (e.g. `SOTD: [[Song]]`) brings in the linked notes' properties, such as "SOTD → Artist". Notes linked anywhere in a note (properties or text) are grouped by their tags, such as "Linked #tea" or "Linked #wardrobe_item". They're offered under "Linked" in Compare with, and can be tracked too.
+- Year, as a date dimension.
+- Properties with many values (songs, teas…) get a ranked "most often" list instead of a pie; click one to filter by it.
+- When tracking something with more than 10 values, the most common keep their own color and the rest are counted as "Other".
+
+### Changed
+- The month chart is now "… over time"; for spans over three years it shows one column per year.
+- "Entries" are now "notes" throughout.
+- Your journal dashboard keeps everything from before. New dashboards hide the streak tiles and pick what to compare automatically until you change it.
+
 ## [0.0.4] - 2026-10-10
 
 ### Added

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  JournalEntry, applyFilters, colorValues, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
+  JournalEntry, LinkedNote, limitValues, applyFilters, colorValues, dimensionKind, matchesSource, sourceLabel, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
   discoverProperties, entriesSince, entryDate, findLinks, getProperty, layoutAfterDrop, layoutColumns, moveCard, normalizeValues,
   orderCards, orderValues, overallBreakdown, seasonOf, streaks, valuesOf,
 } from '../src/journal'
@@ -29,8 +29,8 @@ describe('normalizeValues', () => {
 
   it('unwraps links and tags and drops repeats', () => {
     expect(normalizeValues(['[[Moods/Happy]]', '[[sad|Blue]]', '#calm', 'happy'])).toEqual([
-      { key: 'happy', label: 'Happy' },
-      { key: 'blue', label: 'Blue' },
+      { key: 'happy', label: 'Happy', link: 'Moods/Happy' },
+      { key: 'blue', label: 'Blue', link: 'sad' },
       { key: 'calm', label: 'calm' },
     ])
     expect(normalizeValues('[[a, b|Both]], c').map(v => v.label)).toEqual(['Both', 'c'])
@@ -61,6 +61,7 @@ describe('dimensions', () => {
     expect(valuesOf(e, '@weekday')).toEqual([{ key: '6', label: 'Sat' }])
     expect(valuesOf(e, '@season')).toEqual([{ key: 'autumn', label: 'Autumn' }])
     expect(valuesOf(e, '@month')).toEqual([{ key: '9', label: 'Oct' }])
+    expect(valuesOf(e, '@year')).toEqual([{ key: '2026', label: '2026' }])
     expect(valuesOf(e, 'missing')).toEqual([])
   })
 
@@ -185,5 +186,57 @@ describe('colorValues', () => {
     expect(order).toEqual(['great', 'okay', 'bad', 'meh'])
     expect(colors.get('okay')).toBe('#ff9900')
     expect(colors.get('meh')).toBe('#0000ff')  // the palette's orange is taken by "okay"
+  })
+})
+
+describe('links into other notes', () => {
+  const notes: Record<string, LinkedNote> = {
+    'Blue Song': { name: 'Blue Song', frontmatter: { Artist: '[[Joni]]', tags: ['song'] }, tags: ['song'] },
+    'Red cardigan': { name: 'Red cardigan', frontmatter: { Color: 'Red' }, tags: ['wardrobe_item'] },
+    'Jeans': { name: 'Jeans', frontmatter: {}, tags: ['wardrobe_item', 'denim'] },
+  }
+  const links = (outgoing: string[]) => ({ resolve: (l: string) => notes[l] ?? null, outgoing })
+
+  it('reads the linked notes\' properties through a link property', () => {
+    const e = buildEntry({ path: 'j.md', basename: 'j', ctime: 0 }, { SOTD: '[[Blue Song]]' }, 'date', links(['Blue Song']))
+    expect(valuesOf(e, 'sotd')).toEqual([{ key: 'blue song', label: 'Blue Song', link: 'Blue Song' }])
+    expect(valuesOf(e, 'sotd>artist').map(v => v.label)).toEqual(['Joni'])
+    expect(e.propNames['sotd>artist']).toBe('SOTD → Artist')
+    expect(valuesOf(e, '@linked:song').map(v => v.label)).toEqual(['Blue Song'])
+    // "sotd>tags" is left out when "tags" is ignored
+    expect(discoverProperties([e], ['tags']).map(p => p.id)).toEqual(['sotd', '@linked:song', 'sotd>artist'])
+  })
+
+  it('groups linked notes (from properties or text) by their tags', () => {
+    const e = buildEntry({ path: 'o.md', basename: 'o', ctime: 0 }, { Rating: '🩷' }, 'date',
+      links(['Red cardigan', 'Jeans', 'Jeans', 'Missing note']))
+    expect(valuesOf(e, '@linked:wardrobe_item').map(v => v.label)).toEqual(['Red cardigan', 'Jeans'])
+    expect(valuesOf(e, '@linked:denim').map(v => v.label)).toEqual(['Jeans'])
+    expect(e.propNames['@linked:wardrobe_item']).toBe('Linked #wardrobe_item')
+    expect(dimensionKind('@linked:denim')).toBe('linked')
+    expect(dimensionKind('sotd>artist')).toBe('linked')
+    expect(dimensionKind('rating')).toBe('property')
+    expect(dimensionKind('@weekday')).toBe('date')
+  })
+})
+
+describe('sources', () => {
+  it('matches notes by tag (nested too), folder or all', () => {
+    const note = { path: 'Journal/2026/a.md', tags: ['#journal-entry/daily'] }
+    expect(matchesSource({ kind: 'tag', value: 'journal_entry' }, note)).toBe(true)
+    expect(matchesSource({ kind: 'tag', value: 'outfit' }, note)).toBe(false)
+    expect(matchesSource({ kind: 'folder', value: 'Journal/' }, note)).toBe(true)
+    expect(matchesSource({ kind: 'folder', value: 'Jour' }, note)).toBe(false)
+    expect(matchesSource({ kind: 'all', value: '' }, note)).toBe(true)
+    expect(sourceLabel({ kind: 'folder', value: 'Journal' })).toBe('Journal/')
+    expect(sourceLabel({ kind: 'tag', value: 'outfit' })).toBe('#outfit')
+  })
+})
+
+describe('limitValues', () => {
+  it('keeps chosen-color values and the most common ones', () => {
+    const tally = [{ key: 'a', label: 'a', count: 1 }, { key: 'b', label: 'b', count: 9 }, { key: 'c', label: 'c', count: 5 }, { key: 'd', label: 'd', count: 7 }]
+    expect([...limitValues(['a', 'b', 'c', 'd'], tally, { a: '#000000' }, 3)]).toEqual(['a', 'b', 'd'])
+    expect([...limitValues(['a', 'b'], tally, {}, 3)]).toEqual(['a', 'b'])
   })
 })

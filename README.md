@@ -1,11 +1,11 @@
 # Insights Dashboard
 
-An Obsidian plugin that charts how the properties of your journal notes relate. Out of the box it reads notes tagged `#journal_entry` and compares their **Mood** with **Activities**, **Weather**, the **day of week** and the **season**:
+An Obsidian plugin that turns the properties of your notes, and of the notes they link to, into dashboards: how often each value comes up, and what goes with what.
 
-- how often each mood comes up;
-- which moods go with which weather, activities, weekdays and seasons (100% bars, compared with all entries);
-- "What goes with your mood": the clearest links, e.g. *Weather: Rainy → Sad 53% vs 27% overall*;
-- mood by month, streaks, and your recent entries.
+- **Journal:** how often you feel Great, and whether it goes with the weather, your activities, the day of week, the season, or the tea you drank.
+- **Songs:** which songs are most often your SOTD, and which artists (through each song note's Artist).
+- **Outfits:** of the outfits you rated 🩷, which wardrobe items are in them more often than usual.
+- **Teas:** which teas you drink in which season, so you know what to order.
 
 ## Install with BRAT
 
@@ -13,29 +13,39 @@ An Obsidian plugin that charts how the properties of your journal notes relate. 
 2. BRAT → **Add beta plugin** → `theshayneb/insights-dashboard`.
 3. Enable **Insights Dashboard**, then click the smiley in the ribbon (or run "Insights Dashboard: Open dashboard").
 
+## Dashboards
+
+Pick a dashboard at the top left, or **New dashboard…** for the notes with a tag (e.g. `#outfit`), in a folder, or all notes. Each one remembers its own choices.
+
+On a dashboard:
+
+- **Track**: what the charts are about (Mood, Rating, Season, …).
+- **Compare with**: what it's compared with: the notes' own properties, **linked** ones, and dates (Day of week, Season, Year, Month of year).
+- **Bars**: % of each group, or note counts.
+- **Filters**: click a pie slice, a bar or a list row to narrow everything to it; stack several; "Search these notes" opens the matching notes.
+- **Customize**: hide cards and tiles, drag cards around (into either column), and pick a color for each value.
+
+### Linked notes
+
+- A property that links to notes, like `SOTD: "[[Blue Song]]"`, brings in the linked notes' properties: **SOTD → Artist**.
+- Notes linked anywhere in a note (properties or text) are grouped by their tags: **Linked #tea**, **Linked #wardrobe_item**.
+
 ## Your notes
 
 ```yaml
 ---
 tags: journal_entry
 date: 2026-10-10
-Mood: Happy
-Activities: [Gym, Reading]
+Mood: Great
 Weather: Sunny
+Tea: "[[Masala Chai]]"
+SOTD: "[[Blue Song]]"
 ---
 ```
 
 - Property names ignore case. Values can be lists or comma-separated text; `[[links]]` show their name.
-- Moods can be words or numbers (1–5 is shown low to high). A note with two moods counts half to each.
-- The date comes from `date`, else a date in the file name (`2026-10-10`), else the file creation date.
+- Numbers (1–5) are shown low to high. A note with two values counts half to each.
+- A note's date comes from `date`, else a date in the file name (`2026-10-10`), else the file creation date.
 - Seasons are northern-hemisphere (spring is March–May).
 
-## Make it yours, right on the dashboard
-
-- **Track**: pick the property the charts are about (Mood, Energy, …). Every property in your journal notes is listed.
-- **Compare with**: toggle which properties (and Day of week, Season, Month of year) it's compared with.
-- **Bars**: % of each group, or entry counts.
-- **Filters**: click a pie slice or a bar to narrow the whole dashboard to it (e.g. only rainy days); stack several; "Search these notes" opens the matching notes.
-- **Customize**: hide any card or summary tile, drag cards around (into either column), restore hidden ones, and pick a color for each value (Great is green, Good yellow, Okay orange and Bad light red to start).
-
-Your choices are saved (and synced with Obsidian Sync). The journal tag, the date property and properties to ignore are in **Settings → Insights Dashboard**.
+**Settings → Insights Dashboard** has the dashboards, the date property, and properties to ignore.

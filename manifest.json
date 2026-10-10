@@ -1,9 +1,9 @@
 {
   "id": "insights-dashboard",
   "name": "Insights Dashboard",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "minAppVersion": "1.6.6",
-  "description": "Charts how the properties of your journal notes relate: how often each mood comes up, and whether it goes with the weather, your activities, the day of the week or the season.",
+  "description": "Dashboards of how the properties of your notes, and the notes they link to, relate: moods, songs, teas, outfits, anything with properties.",
   "author": "theshayneb",
   "authorUrl": "https://github.com/theshayneb",
   "isDesktopOnly": false

@@ -5,7 +5,7 @@ import { getThemeColors } from './charts'  // also registers the Chart.js compon
 export interface Series { key: string; label: string; color: string }
 
 export function entriesText(n: number): string {
-  return n === 1 ? '1 entry' : `${n} entries`
+  return n === 1 ? '1 note' : `${n} notes`
 }
 
 /** Entry counts; fractions appear when a note has several tracked values. */

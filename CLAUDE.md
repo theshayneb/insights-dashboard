@@ -1,6 +1,6 @@
 # Insights Dashboard: notes for Claude Code
 
-An Obsidian plugin (installed with BRAT) that charts how journal notes' frontmatter properties relate: mood vs. activities, weather, weekday and season. The owner is the only user. Its look follows the Overview of the owner's PennyWallet Mod plugin, but it is a separate plugin: don't add it back to PennyWallet Mod.
+An Obsidian plugin (installed with BRAT) with dashboards of how notes' frontmatter properties relate, including properties of linked notes and linked notes grouped by tag (e.g. mood vs. weather, season vs. linked #tea, outfit rating vs. linked #wardrobe_item). Each dashboard reads the notes with a tag, in a folder, or all notes. The owner wants insights into their whole vault (about ten years of notes). The owner is the only user. Its look follows the Overview of the owner's PennyWallet Mod plugin, but it is a separate plugin: don't add it back to PennyWallet Mod.
 
 ## Workflow
 
@@ -25,5 +25,7 @@ npm run build
 
 - Settings live in the plugin's `data.json` (synced by Obsidian Sync).
 - `src/journal.ts` is pure (no Obsidian imports) and unit-tested in `tests/`; the view is `src/view/InsightsView.ts`.
+- Dimension ids: a property is its lower-case name (`mood`); a linked note's property is `sotd>artist`; linked notes by tag are `@linked:tea`; dates are `@weekday`, `@season`, `@year`, `@month`.
+- Settings hold several dashboards (`dashboards`, `activeDashboard`); `migrateSettings` upgrades older data.json shapes, so keep it working for them.
 - CSS classes use the `ins-` prefix. UI text is English and sentence case (the Obsidian lint rules require it).
 - Don't give subclasses of Obsidian classes members that may clash with undocumented internals; use an `ins` prefix.

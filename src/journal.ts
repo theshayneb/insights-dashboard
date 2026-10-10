@@ -9,6 +9,26 @@
 export interface JournalValue {
   key: string    // lower-cased, for counting ("Sunny" and "sunny" are one value)
   label: string  // as written in the first note that used it
+  link?: string  // for [[links]]: the link target, to follow into the linked note
+}
+
+/** A note an entry links to, as far as the dashboard needs it. */
+export interface LinkedNote {
+  name: string                                // file name without extension
+  frontmatter: Record<string, unknown> | undefined
+  tags: string[]                              // without "#"
+}
+
+/** Lets buildEntry follow links: resolve a link target, and the note's outgoing links (properties and text). */
+export interface LinkContext {
+  resolve: (link: string) => LinkedNote | null
+  outgoing: string[]
+}
+
+/** Where a dashboard's notes come from. */
+export interface Source {
+  kind: 'tag' | 'folder' | 'all'
+  value: string  // tag without "#", or folder path; unused for 'all'
 }
 
 export interface JournalEntry {
@@ -86,6 +106,11 @@ export const BUILTIN_DIMENSIONS: BuiltinDimension[] = [
     order: ['spring', 'summer', 'autumn', 'winter'],
   },
   {
+    id: '@year', name: 'Year',
+    valueOf: (d) => ({ key: String(d.getFullYear()), label: String(d.getFullYear()) }),
+    order: Array.from({ length: 101 }, (_, i) => String(1970 + i)),
+  },
+  {
     id: '@month', name: 'Month of year',
     valueOf: (d) => ({ key: String(d.getMonth()), label: MONTH_NAMES[d.getMonth()] }),
     order: MONTH_NAMES.map((_, i) => String(i)),
@@ -129,13 +154,14 @@ export function normalizeValues(raw: unknown): JournalValue[] {
   const add = (text: string) => {
     let label = text.trim()
     const link = label.match(/^\[\[([^\]|]*)(?:\|([^\]]*))?\]\]$/)
+    const target = link ? link[1].split('#')[0].trim() : undefined
     if (link) label = (link[2] ?? link[1].split('/').pop() ?? '').split('#')[0].trim()
     label = label.replace(/^#/, '').trim()
     if (!label) return
     const key = label.toLowerCase()
     if (seen.has(key)) return
     seen.add(key)
-    out.push({ key, label })
+    out.push(target ? { key, label, link: target } : { key, label })
   }
   const visit = (value: unknown) => {
     if (value === null || value === undefined) return
@@ -173,10 +199,45 @@ export function entryDate(dateValue: unknown, basename: string, ctime: number): 
   return new Date(c.getFullYear(), c.getMonth(), c.getDate())
 }
 
+/** Tag comparison key: case-insensitive, no "#", and "-" / "_" count as the same. */
+export function tagKey(tag: string): string {
+  return tag.trim().replace(/^#/, '').toLowerCase().replace(/-/g, '_')
+}
+
+/** Whether a note (its path and tags) belongs to a dashboard's source. Nested tags count. */
+export function matchesSource(source: Source, note: { path: string; tags: string[] }): boolean {
+  if (source.kind === 'all') return true
+  if (source.kind === 'folder') {
+    const folder = source.value.trim().replace(/^\/+|\/+$/g, '')
+    return folder === '' || note.path.startsWith(folder + '/')
+  }
+  const key = tagKey(source.value)
+  return !!key && note.tags.some(t => { const k = tagKey(t); return k === key || k.startsWith(key + '/') })
+}
+
+export function sourceLabel(source: Source): string {
+  if (source.kind === 'all') return 'All notes'
+  if (source.kind === 'folder') return `${source.value.replace(/\/+$/, '') || '/'}/`
+  return `#${source.value}`
+}
+
+function addValues(props: Record<string, JournalValue[]>, id: string, values: JournalValue[]) {
+  const list = props[id] ?? (props[id] = [])
+  for (const v of values) if (!list.some(x => x.key === v.key)) list.push(v)
+}
+
+/**
+ * An entry from a note's frontmatter. With `links`, it also gets:
+ * - for a property linking to notes (e.g. SOTD: [[Song]]), the linked notes'
+ *   properties, as "sotd>artist" ("SOTD → Artist");
+ * - for every tag on notes it links to (in properties or text), the linked
+ *   notes with that tag, as "@linked:wardrobe_item" ("Linked #wardrobe_item").
+ */
 export function buildEntry(
   file: { path: string; basename: string; ctime: number },
   frontmatter: Record<string, unknown> | undefined,
   dateProperty: string,
+  links?: LinkContext,
 ): JournalEntry {
   const props: Record<string, JournalValue[]> = {}
   const propNames: Record<string, string> = {}
@@ -187,7 +248,37 @@ export function buildEntry(
     if (values.length === 0) continue
     props[id] = values
     propNames[id] = name
+
+    if (!links) continue
+    for (const v of values) {
+      if (!v.link) continue
+      const note = links.resolve(v.link)
+      if (!note) continue
+      for (const [subName, subRaw] of Object.entries(note.frontmatter ?? {})) {
+        const sub = subName.toLowerCase()
+        if (sub === 'position') continue
+        const subValues = normalizeValues(subRaw)
+        if (subValues.length === 0) continue
+        addValues(props, `${id}>${sub}`, subValues)
+        propNames[`${id}>${sub}`] = `${name} → ${subName}`
+      }
+    }
   }
+
+  if (links) {
+    const seen = new Set<string>()
+    for (const link of links.outgoing) {
+      const note = links.resolve(link)
+      if (!note || seen.has(note.name.toLowerCase())) continue
+      seen.add(note.name.toLowerCase())
+      for (const tag of note.tags) {
+        const id = `@linked:${tagKey(tag)}`
+        addValues(props, id, [{ key: note.name.toLowerCase(), label: note.name }])
+        propNames[id] = `Linked #${tag.replace(/^#/, '')}`
+      }
+    }
+  }
+
   return {
     path: file.path,
     title: file.basename,
@@ -197,16 +288,25 @@ export function buildEntry(
   }
 }
 
+/** What kind of dimension an id is: a note's own property, something from linked notes, or a date. */
+export function dimensionKind(id: string): 'property' | 'linked' | 'date' {
+  if (builtinDimension(id)) return 'date'
+  if (id.startsWith('@linked:') || id.includes('>')) return 'linked'
+  return 'property'
+}
+
 /**
  * Properties used in the entries, most used first. `ignore` (lower case) leaves
  * out bookkeeping properties such as tags or the date.
  */
 export function discoverProperties(entries: JournalEntry[], ignore: string[]): DiscoveredProperty[] {
+  // A note's own properties first, then those from linked notes; most used first within each
   const ignored = new Set(ignore.map(s => s.trim().toLowerCase()))
   const found = new Map<string, { entries: number; names: Map<string, number> }>()
   for (const e of entries) {
     for (const id of Object.keys(e.props)) {
-      if (ignored.has(id)) continue
+      // "sotd>tags" is ignored when "tags" is
+      if (ignored.has(id) || ignored.has(id.split('>').pop() ?? '')) continue
       let item = found.get(id)
       if (!item) { item = { entries: 0, names: new Map() }; found.set(id, item) }
       item.entries++
@@ -218,7 +318,8 @@ export function discoverProperties(entries: JournalEntry[], ignore: string[]): D
     id,
     name: [...item.names].sort((a, b) => b[1] - a[1])[0][0],
     entries: item.entries,
-  })).sort((a, b) => b.entries - a.entries || a.name.localeCompare(b.name))
+  })).sort((a, b) => (dimensionKind(a.id) === 'linked' ? 1 : 0) - (dimensionKind(b.id) === 'linked' ? 1 : 0)
+    || b.entries - a.entries || a.name.localeCompare(b.name))
 }
 
 // ─── Dates and filters ────────────────────────────────────────────────────────
@@ -300,8 +401,14 @@ export function breakdownByGroup(
 }
 
 /** Groups of a dimension, in its natural order for built-ins, else biggest first. */
-export function breakdownByDimension(entries: JournalEntry[], dim: string, tracked: string): Breakdown[] {
-  const groups = breakdownByGroup(entries, e => valuesOf(e, dim), e => valuesOf(e, tracked))
+export type TrackedOf = string | ((e: JournalEntry) => JournalValue[])
+
+function trackedFn(tracked: TrackedOf): (e: JournalEntry) => JournalValue[] {
+  return typeof tracked === 'string' ? (e) => valuesOf(e, tracked) : tracked
+}
+
+export function breakdownByDimension(entries: JournalEntry[], dim: string, tracked: TrackedOf): Breakdown[] {
+  const groups = breakdownByGroup(entries, e => valuesOf(e, dim), trackedFn(tracked))
   const builtin = builtinDimension(dim)
   if (builtin) {
     const byKey = new Map(groups.map(g => [g.key, g]))
@@ -311,8 +418,8 @@ export function breakdownByDimension(entries: JournalEntry[], dim: string, track
 }
 
 /** Every entry with a tracked value, as one group (the baseline the others are compared with). */
-export function overallBreakdown(entries: JournalEntry[], tracked: string, label: string): Breakdown {
-  return breakdownByGroup(entries, () => [{ key: '__all__', label }], e => valuesOf(e, tracked))[0]
+export function overallBreakdown(entries: JournalEntry[], tracked: TrackedOf, label: string): Breakdown {
+  return breakdownByGroup(entries, () => [{ key: '__all__', label }], trackedFn(tracked))[0]
     ?? { key: '__all__', label, entries: 0, mix: new Map() }
 }
 
@@ -451,4 +558,16 @@ export function colorValues(
   for (const k of chosenKeys) colors.set(k, chosen[k])
   rest.forEach((k, i) => colors.set(k, pool[i % pool.length]))
   return { order: [...chosenKeys, ...rest], colors }
+}
+
+/**
+ * At most `max` tracked values keep their own color: chosen-color values and the
+ * most common ones; the rest are counted together as "Other" (key "__other__").
+ */
+export function limitValues(order: string[], tally: Tally[], chosen: Record<string, string>, max: number): Set<string> {
+  if (order.length <= max) return new Set(order)
+  const count = new Map(tally.map(v => [v.key, v.count]))
+  const keep = order.filter(k => k in chosen).slice(0, max)
+  const rest = order.filter(k => !(k in chosen)).sort((a, b) => (count.get(b) ?? 0) - (count.get(a) ?? 0))
+  return new Set([...keep, ...rest.slice(0, max - keep.length)])
 }

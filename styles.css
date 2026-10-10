@@ -608,6 +608,82 @@
   border-radius: 50%;
 }
 
+/* Dashboard picker (header, left) */
+.ins-header-count {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ins-header-count .dropdown {
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 220px;
+}
+
+/* Compare chips, grouped: own properties, linked, dates */
+.ins-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ins-chip-group-label {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: 6px;
+}
+
+/* Ranked "most often" list (properties with many values) */
+.ins-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ins-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ins-top-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ins-top-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-normal);
+}
+
+.ins-top-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.ins-top-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--interactive-accent);
+}
+
+.ins-top-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  min-width: 2ch;
+  text-align: right;
+}
+
 /* Dragging cards (customize mode) */
 .ins-drag-handle {
   display: inline-flex;
