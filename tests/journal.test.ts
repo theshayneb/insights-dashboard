@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
-  JournalEntry, breakdownByGroup, buildEntry, countValues, entriesSince, entryDate, findMoodLinks,
-  getProperty, normalizeValues, orderMoods, overallBreakdown, seasonOf, streaks,
+  JournalEntry, applyFilters, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
+  discoverProperties, entriesSince, entryDate, findLinks, getProperty, moveCard, normalizeValues,
+  orderCards, orderValues, overallBreakdown, seasonOf, streaks, valuesOf,
 } from '../src/journal'
 
-const settings = { moodProperty: 'Mood', factorProperties: ['Activities', 'Weather'], dateProperty: 'date' }
-
 function entry(date: string, fm: Record<string, unknown>): JournalEntry {
-  return buildEntry({ path: `${date}.md`, basename: date, ctime: 0 }, fm, settings)
+  return buildEntry({ path: `${date}.md`, basename: date, ctime: 0 }, { date, ...fm }, 'date')
 }
 
 describe('getProperty', () => {
@@ -25,6 +24,7 @@ describe('normalizeValues', () => {
     expect(normalizeValues(4)).toEqual([{ key: '4', label: '4' }])
     expect(normalizeValues(null)).toEqual([])
     expect(normalizeValues('')).toEqual([])
+    expect(normalizeValues({ nested: 1 })).toEqual([])
   })
 
   it('unwraps links and tags and drops repeats', () => {
@@ -46,12 +46,34 @@ describe('entryDate', () => {
   })
 })
 
-describe('seasonOf', () => {
+describe('dimensions', () => {
   it('uses meteorological seasons', () => {
     expect(seasonOf(new Date(2026, 2, 1))).toBe('spring')
     expect(seasonOf(new Date(2026, 7, 31))).toBe('summer')
     expect(seasonOf(new Date(2026, 10, 30))).toBe('autumn')
     expect(seasonOf(new Date(2026, 0, 15))).toBe('winter')
+  })
+
+  it('reads properties ignoring case, and built-in date dimensions', () => {
+    const e = entry('2026-10-10', { Mood: 'Happy', weather: 'Sunny' })  // a Saturday
+    expect(valuesOf(e, 'mood')).toEqual([{ key: 'happy', label: 'Happy' }])
+    expect(valuesOf(e, 'weather')).toEqual([{ key: 'sunny', label: 'Sunny' }])
+    expect(valuesOf(e, '@weekday')).toEqual([{ key: '6', label: 'Sat' }])
+    expect(valuesOf(e, '@season')).toEqual([{ key: 'autumn', label: 'Autumn' }])
+    expect(valuesOf(e, '@month')).toEqual([{ key: '9', label: 'Oct' }])
+    expect(valuesOf(e, 'missing')).toEqual([])
+  })
+
+  it('discovers properties, most used first, without ignored ones', () => {
+    const entries = [
+      entry('2026-01-01', { Mood: 'Happy', Weather: 'Sunny', tags: ['journal_entry'] }),
+      entry('2026-01-02', { mood: 'Sad', Energy: 3, tags: ['journal_entry'] }),
+    ]
+    expect(discoverProperties(entries, ['tags', 'date'])).toEqual([
+      { id: 'mood', name: 'Mood', entries: 2 },
+      { id: 'energy', name: 'Energy', entries: 1 },
+      { id: 'weather', name: 'Weather', entries: 1 },
+    ])
   })
 })
 
@@ -65,42 +87,74 @@ describe('tallies', () => {
   ]
 
   it('counts values, most common first', () => {
-    expect(countValues(entries, e => e.mood).map(m => [m.label, m.count])).toEqual([['Happy', 2], ['Sad', 2], ['Tired', 1]])
-    expect(countValues(entries, e => e.factors['Weather']).map(m => [m.label, m.count])).toEqual([['Rainy', 3], ['Sunny', 2]])
+    expect(countValues(entries, e => valuesOf(e, 'mood')).map(m => [m.label, m.count])).toEqual([['Happy', 2], ['Sad', 2], ['Tired', 1]])
+    expect(countValues(entries, e => valuesOf(e, 'weather')).map(m => [m.label, m.count])).toEqual([['Rainy', 3], ['Sunny', 2]])
   })
 
-  it('orders numeric moods low to high', () => {
-    expect(orderMoods([{ key: '5', label: '5', count: 9 }, { key: '2', label: '2', count: 1 }])).toEqual(['2', '5'])
-    expect(orderMoods([{ key: 'b', label: 'b', count: 9 }, { key: 'a', label: 'a', count: 1 }])).toEqual(['b', 'a'])
+  it('orders values: numbers low to high, built-ins naturally, else most common first', () => {
+    expect(orderValues([{ key: '5', label: '5', count: 9 }, { key: '2', label: '2', count: 1 }])).toEqual(['2', '5'])
+    expect(orderValues([{ key: 'b', label: 'b', count: 9 }, { key: 'a', label: 'a', count: 1 }])).toEqual(['b', 'a'])
+    expect(orderValues([{ key: '0', label: 'Sun', count: 9 }, { key: '1', label: 'Mon', count: 1 }], '@weekday')).toEqual(['1', '0'])
   })
 
-  it('splits entries with several moods and skips entries with none', () => {
-    const rainy = breakdownByGroup(entries, e => e.factors['Weather']).find(g => g.key === 'rainy')!
+  it('splits entries with several tracked values and skips entries with none', () => {
+    const rainy = breakdownByGroup(entries, e => valuesOf(e, 'weather'), e => valuesOf(e, 'mood')).find(g => g.key === 'rainy')!
     expect(rainy.entries).toBe(2)
-    expect(rainy.moods.get('sad')).toBe(1.5)
-    expect(rainy.moods.get('tired')).toBe(0.5)
-    expect(overallBreakdown(entries, 'All').entries).toBe(4)
+    expect(rainy.mix.get('sad')).toBe(1.5)
+    expect(rainy.mix.get('tired')).toBe(0.5)
+    expect(overallBreakdown(entries, 'mood', 'All').entries).toBe(4)
   })
 
-  it('finds groups with a clearly higher share of a mood', () => {
+  it('can track any property against any other', () => {
+    const byMood = breakdownByDimension(entries, 'mood', 'weather')
+    expect(byMood.map(g => [g.label, g.entries])).toEqual([['Happy', 2], ['Sad', 2], ['Tired', 1]])
+    expect(byMood[0].mix.get('sunny')).toBe(2)
+    const byWeekday = breakdownByDimension(entries, '@weekday', 'mood')
+    expect(byWeekday.map(g => g.label)).toEqual(['Mon', 'Thu', 'Fri', 'Sat'])
+  })
+
+  it('filters entries by every filter', () => {
+    expect(applyFilters(entries, [{ dim: 'weather', value: 'rainy', label: 'Rainy' }])).toHaveLength(3)
+    expect(applyFilters(entries, [
+      { dim: 'weather', value: 'rainy', label: 'Rainy' },
+      { dim: 'mood', value: 'tired', label: 'Tired' },
+    ]).map(e => e.path)).toEqual(['2026-01-05.md'])
+    expect(applyFilters(entries, [{ dim: '@weekday', value: '1', label: 'Mon' }]).map(e => e.path)).toEqual(['2026-01-05.md'])
+  })
+
+  it('finds groups with a clearly higher share of a value', () => {
     const many = [
       ...entries,
       entry('2026-01-07', { Mood: 'Sad', Weather: 'Rainy' }),
       entry('2026-01-08', { Mood: 'Happy', Weather: 'Sunny' }),
       entry('2026-01-09', { Mood: 'Happy', Weather: 'Cloudy' }),
     ]
-    const links = findMoodLinks(
-      [{ name: 'Weather', groups: breakdownByGroup(many, e => e.factors['Weather']) }],
-      overallBreakdown(many, 'All'),
+    const links = findLinks(
+      [{ id: 'weather', name: 'Weather', groups: breakdownByDimension(many, 'weather', 'mood') }],
+      overallBreakdown(many, 'mood', 'All'),
     )
-    expect(links.map(l => `${l.group}→${l.moodKey}`)).toEqual(['Rainy→sad', 'Sunny→happy'])
+    expect(links.map(l => `${l.group}→${l.valueKey}`)).toEqual(['Rainy→sad', 'Sunny→happy'])
     expect(links[1].share).toBe(1)
     expect(links[0].baseline).toBeCloseTo(2.5 / 7)
+    expect(links[0].groupKey).toBe('rainy')
   })
 
   it('filters by date and computes streaks', () => {
     expect(entriesSince(entries, new Date(2026, 0, 5))).toHaveLength(2)
     expect(streaks(entries, new Date(2026, 0, 7))).toEqual({ current: 2, longest: 3 })
     expect(streaks(entries, new Date(2026, 0, 9))).toEqual({ current: 0, longest: 3 })
+  })
+})
+
+describe('card order', () => {
+  it('sorts by the saved order, new cards last', () => {
+    expect(orderCards(['a', 'b', 'c', 'd'], ['c', 'a'])).toEqual(['c', 'a', 'b', 'd'])
+  })
+
+  it('moves a card past its visible neighbour', () => {
+    // b is hidden, so moving c up swaps it with a
+    expect(moveCard(['a', 'b', 'c'], ['a', 'c'], 'c', -1, ['x'])).toEqual(['c', 'b', 'a', 'x'])
+    expect(moveCard(['a', 'b', 'c'], ['a', 'b', 'c'], 'a', 1, [])).toEqual(['b', 'a', 'c'])
+    expect(moveCard(['a', 'b'], ['a', 'b'], 'a', -1, ['s'])).toEqual(['s'])  // already first
   })
 })

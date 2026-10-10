@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf } from 'obsidian'
-import { DEFAULT_SETTINGS, InsightsSettings, InsightsSettingTab } from './settings'
+import { DEFAULT_SETTINGS, InsightsSettings, InsightsSettingTab, migrateSettings } from './settings'
 import { InsightsView, INSIGHTS_VIEW_TYPE } from './view/InsightsView'
 
 export default class InsightsDashboardPlugin extends Plugin {
@@ -21,7 +21,7 @@ export default class InsightsDashboardPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<InsightsSettings> | null) }
+    this.settings = migrateSettings((await this.loadData()) as Record<string, unknown> | null)
   }
 
   async saveSettings() {

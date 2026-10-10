@@ -30,4 +30,12 @@ Weather: Sunny
 - The date comes from `date`, else a date in the file name (`2026-10-10`), else the file creation date.
 - Seasons are northern-hemisphere (spring is March–May).
 
-Change the tag and the properties in **Settings → Insights Dashboard**.
+## Make it yours, right on the dashboard
+
+- **Track**: pick the property the charts are about (Mood, Energy, …). Every property in your journal notes is listed.
+- **Compare with**: toggle which properties (and Day of week, Season, Month of year) it's compared with.
+- **Bars**: % of each group, or entry counts.
+- **Filters**: click a pie slice or a bar to narrow the whole dashboard to it (e.g. only rainy days); stack several; "Search these notes" opens the matching notes.
+- **Customize**: hide any card or summary tile, move cards up and down, restore hidden ones.
+
+Your choices are saved (and synced with Obsidian Sync). The journal tag, the date property and properties to ignore are in **Settings → Insights Dashboard**.

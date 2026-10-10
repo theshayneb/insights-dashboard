@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.2] - 2026-10-10
+
+### Added
+- Choose on the dashboard what it shows, saved and synced:
+  - **Track**: any property found in your journal notes (Mood, Energy, Weather, …) or a date dimension.
+  - **Compare with**: toggle each property, plus Day of week, Season and Month of year.
+  - **Bars**: % of each group or entry counts.
+  - **Filters**: click a pie slice, a breakdown bar or a "What goes with…" row to narrow everything to it, or use "Add filter". Filters stack (one value per property); "Search these notes" opens them in Obsidian search.
+  - **Customize**: hide any card or summary tile (e.g. the streaks), move cards up and down, and bring hidden ones back from the "Hidden" row.
+- Properties are found automatically. Settings → Ignored properties leaves some out (tags, aliases and cssclasses by default); Settings → Reset dashboard layout shows everything again.
+
+### Changed
+- The mood and compare-with properties moved from Settings to the dashboard; your 0.0.1 choices carry over.
+
 ## [0.0.1] - 2026-10-10
 
 ### Added

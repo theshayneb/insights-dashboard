@@ -171,13 +171,6 @@
 }
 
 /* Recent entries: the summary sets the row height; the list fills the card and scrolls */
-.ins-recent-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-}
-
 .ins-recent-count {
   font-size: 12px;
   font-weight: normal;
@@ -367,6 +360,220 @@
   cursor: pointer;
 }
 
+/* Customize button (header, right) */
+.ins-header-end {
+  justify-self: end;
+}
+
+.ins-customize-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.ins-customize-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.ins-customize-btn svg,
+.ins-link-btn svg,
+.ins-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Toolbar: track, compare with, bars */
+.ins-toolbar,
+.ins-filters,
+.ins-hidden-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 10px 20px 0;
+}
+
+.ins-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ins-compare {
+  flex: 1 1 320px;
+}
+
+.ins-toolbar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.ins-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 0.5px solid var(--background-modifier-border-hover);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.ins-toggle.is-builtin {
+  font-style: italic;
+}
+
+.ins-toggle.is-active {
+  background: color-mix(in srgb, var(--interactive-accent) 18%, var(--background-primary) 82%);
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.ins-segmented {
+  display: flex;
+  border: 0.5px solid var(--background-modifier-border-hover);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ins-segmented button {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ins-segmented button + button {
+  border-left: 0.5px solid var(--background-modifier-border-hover);
+}
+
+.ins-segmented button.is-active {
+  background: color-mix(in srgb, var(--text-normal) 8%, var(--background-primary) 92%);
+  color: var(--text-normal);
+  cursor: default;
+}
+
+/* Filters */
+.ins-filters {
+  gap: 6px 8px;
+}
+
+.ins-filters-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.ins-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--interactive-accent) 18%, var(--background-primary) 82%);
+  color: var(--text-normal);
+}
+
+.ins-filter-dim {
+  color: var(--text-muted);
+}
+
+.ins-filter-remove {
+  display: inline-flex;
+  padding: 2px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ins-filter-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ins-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--text-accent);
+  cursor: pointer;
+}
+
+/* Customize mode */
+.ins-hidden-tray {
+  gap: 6px 8px;
+}
+
+.ins-dashboard.is-customizing .ins-card {
+  border-style: dashed;
+  border-color: var(--interactive-accent);
+}
+
+.ins-card-title,
+.ins-stat-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.ins-card-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: normal;
+}
+
+.ins-icon-btn {
+  padding: 2px;
+  height: auto;
+}
+
+.ins-icon-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ins-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ins-link[role="button"] {
+  cursor: pointer;
+}
+
+.ins-link[role="button"]:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ins-share-wrap.is-clickable {
+  cursor: pointer;
+}
+
+.ins-more {
+  margin: 6px 0 0;
+}
+
 /* Phones and narrow panes: one column, tabs on their own row */
 @media (max-width: 768px) {
   .ins-grid {
@@ -392,6 +599,17 @@
   }
 
   .ins-header-end {
-    display: none;
+    justify-self: stretch;
+  }
+
+  .ins-customize-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ins-toolbar,
+  .ins-filters,
+  .ins-hidden-tray {
+    padding: 10px 12px 0;
   }
 }
