@@ -1,0 +1,397 @@
+/* ── Insights Dashboard (styled like PennyWallet's Overview) ── */
+
+.ins-dashboard {
+  --ins-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  padding: 0 0 40px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.theme-dark .ins-dashboard {
+  --ins-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.ins-dashboard canvas,
+.ins-chart-wrap,
+.ins-pie-wrap {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Header: entry count, range tabs */
+.ins-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px 12px;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+}
+
+.ins-header-count {
+  justify-self: start;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.ins-header-tabs {
+  justify-self: center;
+  display: flex;
+  border: 0.5px solid var(--background-modifier-border-hover);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ins-header-tab {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.1s, color 0.1s;
+  box-shadow: none;
+}
+
+.ins-header-tab + .ins-header-tab {
+  border-left: 0.5px solid var(--background-modifier-border-hover);
+}
+
+.ins-header-tab:hover:not(.is-active) {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+}
+
+.ins-header-tab.is-active {
+  background: color-mix(in srgb, var(--text-normal) 8%, var(--background-primary) 92%);
+  color: var(--text-normal);
+  font-weight: 500;
+  cursor: default;
+}
+
+/* Cards */
+.ins-card {
+  background: var(--background-secondary);
+  border: 0.5px solid var(--background-modifier-border);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  box-shadow: var(--ins-card-shadow);
+  min-width: 0;
+}
+
+.ins-card-title {
+  font-size: 16px;
+  color: var(--text-muted);
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.ins-no-data {
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.ins-empty {
+  padding: 16px 20px;
+}
+
+/* Two columns: breakdowns left, pies right */
+.ins-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 12px;
+  padding: 16px 20px 20px;
+}
+
+.ins-grid-left,
+.ins-grid-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Summary (5) beside recent entries (3); stacked when narrow */
+.ins-left-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.ins-summary {
+  flex: 5 1 0;
+  min-width: 260px;
+}
+
+.ins-recent {
+  flex: 3 1 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ins-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ins-stat {
+  background: var(--background-primary);
+  border-radius: 10px;
+  padding: 0.875rem 1rem;
+  min-width: 0;
+}
+
+.ins-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  letter-spacing: 0.03em;
+}
+
+.ins-stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ins-stat-sub {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+/* Recent entries: the summary sets the row height; the list fills the card and scrolls */
+.ins-recent-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ins-recent-count {
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.ins-recent-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 0;
+  min-height: 160px;
+  overflow-y: auto;
+}
+
+.ins-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 4px;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ins-row:last-child {
+  border-bottom: none;
+}
+
+.ins-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ins-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.ins-row-date {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+
+.ins-row-title,
+.ins-row-details {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ins-row-title {
+  color: var(--text-normal);
+}
+
+.ins-row-details {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* Mood chips and legends */
+.ins-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-normal);
+  white-space: nowrap;
+}
+
+.ins-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.ins-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* What goes with your mood */
+.ins-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.ins-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+}
+
+.ins-link:last-child {
+  border-bottom: none;
+}
+
+.ins-link-group {
+  flex: 1 1 160px;
+  min-width: 0;
+  color: var(--text-normal);
+}
+
+.ins-link-dim {
+  color: var(--text-muted);
+}
+
+.ins-link-share {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+}
+
+.ins-link-n {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* Charts */
+.ins-chart-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.ins-trend-card .ins-chart-wrap {
+  height: 260px;
+  overflow: hidden;
+}
+
+/* Pies */
+.ins-pie-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ins-pie-canvas-wrap {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.ins-pie-legend {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  width: 100%;
+}
+
+.ins-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.ins-legend-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ins-legend-amt {
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+  margin-right: 8px;
+}
+
+.ins-legend-pct {
+  color: var(--text-faint);
+}
+
+.ins-pie-canvas-wrap.is-clickable,
+.ins-legend-item.is-clickable {
+  cursor: pointer;
+}
+
+/* Phones and narrow panes: one column, tabs on their own row */
+@media (max-width: 768px) {
+  .ins-grid {
+    grid-template-columns: 1fr;
+    padding: 12px 12px 20px;
+  }
+
+  .ins-header {
+    grid-template-columns: 1fr;
+    row-gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .ins-header-tabs {
+    justify-self: stretch;
+  }
+
+  .ins-header-tabs .ins-header-tab {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+
+  .ins-header-end {
+    display: none;
+  }
+}
