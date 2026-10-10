@@ -31,6 +31,9 @@
 
 .ins-header-count {
   justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -609,12 +612,6 @@
 }
 
 /* Dashboard picker (header, left) */
-.ins-header-count {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .ins-header-count .dropdown {
   font-size: 13px;
   font-weight: 600;
