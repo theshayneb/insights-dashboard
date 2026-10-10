@@ -303,9 +303,14 @@
   min-width: 0;
 }
 
-.ins-trend-card .ins-chart-wrap {
+.ins-trend-card .ins-chart-wrap,
+.ins-columns-wrap {
   height: 260px;
   overflow: hidden;
+}
+
+.ins-columns-wrap.is-clickable {
+  cursor: pointer;
 }
 
 /* Pies */
@@ -572,6 +577,39 @@
 
 .ins-more {
   margin: 6px 0 0;
+}
+
+/* Dragging cards (customize mode) */
+.ins-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  color: var(--text-faint);
+  cursor: grab;
+  touch-action: none;
+}
+
+.ins-drag-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ins-card-title > span {
+  margin-right: auto;
+}
+
+.ins-drag-ghost {
+  opacity: 0.4;
+}
+
+.ins-drag-chosen {
+  box-shadow: var(--ins-card-shadow), 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* Columns stay drop targets even when every card left one */
+.ins-dashboard.is-customizing .ins-grid-left,
+.ins-dashboard.is-customizing .ins-grid-right {
+  min-height: 120px;
 }
 
 /* Phones and narrow panes: one column, tabs on their own row */

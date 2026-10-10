@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.3] - 2026-10-10
+
+### Added
+- Customize: drag cards by their grip to reorder them, including into the other column (e.g. a pie in the wide column). Each card also has a button to move it to the other column; the ↑/↓ arrows still work. Settings → Reset dashboard layout puts every card back in its default column and order.
+
+### Changed
+- Day of week, Season and Month of year breakdowns are upright columns, like the month chart, instead of horizontal bars. In % mode an "All" column comes first to compare with; click a column to filter by it.
+
 ## [0.0.2] - 2026-10-10
 
 ### Added

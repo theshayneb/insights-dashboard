@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian'
 import type InsightsDashboardPlugin from './main'
-import type { Filter } from './journal'
+import type { Column, Filter } from './journal'
 
 export type Range = '3m' | '6m' | '12m' | 'all'
 export type ValueMode = 'percent' | 'count'
@@ -18,6 +18,7 @@ export interface InsightsSettings {
   valueMode: ValueMode         // breakdown bars as % of each group or as entry counts
   hiddenCards: string[]
   cardOrder: string[]
+  cardColumns: Record<string, Column>  // cards moved to the other column
 }
 
 export const DEFAULT_SETTINGS: InsightsSettings = {
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: InsightsSettings = {
   valueMode: 'percent',
   hiddenCards: [],
   cardOrder: [],
+  cardColumns: {},
 }
 
 /** Settings from data.json, with defaults for anything missing; 0.0.1's mood settings carry over. */
@@ -90,10 +92,11 @@ export class InsightsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Reset dashboard layout')
-      .setDesc('Show every card again in its default order, and clear the filters.')
+      .setDesc('Show every card again in its default column and order, and clear the filters.')
       .addButton(btn => btn.setButtonText('Reset').onClick(() => {
         settings.hiddenCards = []
         settings.cardOrder = []
+        settings.cardColumns = {}
         settings.filters = []
         void this.plugin.saveSettings()
       }))

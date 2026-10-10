@@ -1,6 +1,6 @@
 {
   "name": "insights-dashboard",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Obsidian plugin: a dashboard of how your journal notes' properties (mood, activities, weather) relate",
   "main": "main.js",
   "scripts": {
@@ -15,6 +15,7 @@
   "devDependencies": {
     "@eslint/js": "^9.24.0",
     "@types/node": "^24.12.2",
+    "@types/sortablejs": "^1.15.9",
     "esbuild": "^0.28.0",
     "eslint": "^9.24.0",
     "eslint-plugin-obsidianmd": "^0.1.9",
@@ -29,6 +30,7 @@
   },
   "dependencies": {
     "chart.js": "^4.5.1",
-    "chartjs-plugin-datalabels": "^2.2.0"
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "sortablejs": "^1.15.7"
   }
 }

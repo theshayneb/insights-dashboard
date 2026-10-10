@@ -1,13 +1,14 @@
 import { App, CachedMetadata, DropdownComponent, ItemView, Menu, WorkspaceLeaf, debounce, getAllTags, setIcon } from 'obsidian'
 import { Chart } from 'chart.js'
+import Sortable from 'sortablejs'
 import type InsightsDashboardPlugin from '../main'
 import type { Range } from '../settings'
 import { assignColors, drawPie, formatMonth, getMonthRangeEndingAt, getThemeColors } from './charts'
 import { Series, drawShares, drawTrend, entriesText } from './journalCharts'
 import {
   BUILTIN_DIMENSIONS, Breakdown, Filter, JournalEntry, Link, Tally,
-  applyFilters, breakdownByDimension, breakdownByGroup, builtinDimension, buildEntry, countValues,
-  discoverProperties, entriesSince, findLinks, moveCard, orderCards, orderValues,
+  Column, applyFilters, breakdownByDimension, breakdownByGroup, builtinDimension, buildEntry, countValues,
+  discoverProperties, entriesSince, findLinks, layoutAfterDrop, layoutColumns, moveCard, orderValues,
   overallBreakdown, streaks, valuesOf, weekdayName, yearMonthOf,
 } from '../journal'
 
@@ -83,6 +84,7 @@ interface Model {
  */
 export class InsightsView extends ItemView {
   private charts: Chart[] = []
+  private sortables: Sortable[] = []
   private insCustomizing = false
   private readonly insScheduleRender = debounce(() => this.render(), 1000, true)
 
@@ -117,6 +119,8 @@ export class InsightsView extends ItemView {
   private clearCharts() {
     this.charts.forEach(c => c.destroy())
     this.charts = []
+    this.sortables.forEach(s => s.destroy())
+    this.sortables = []
   }
 
   /** Saves a dashboard choice; saving redraws every open dashboard. */
@@ -214,8 +218,15 @@ export class InsightsView extends ItemView {
     if (!topRow.hasChildNodes()) topRow.remove()
 
     // ── Movable cards ─────────────────────────────────────────────────────────
-    this.renderColumn(left, this.leftCards(m))
-    this.renderColumn(right, this.rightCards(m))
+    // ── Movable cards: either column, saved order ────────────────────────────
+    const cards = [
+      ...this.leftCards(m).map(c => ({ ...c, column: 'left' as Column })),
+      ...this.rightCards(m).map(c => ({ ...c, column: 'right' as Column })),
+    ]
+    const layout = layoutColumns(cards, this.settings.cardColumns ?? {}, this.settings.cardOrder ?? [])
+    this.renderColumn(left, 'left', layout, cards)
+    this.renderColumn(right, 'right', layout, cards)
+    if (this.insCustomizing) this.enableDragging(left, right)
 
     contentEl.scrollTop = scrollTop
   }
@@ -368,24 +379,65 @@ export class InsightsView extends ItemView {
     }))
   }
 
-  private renderColumn(parent: HTMLElement, cards: { id: string; name: string; draw: (card: HTMLElement) => void }[]) {
-    const ids = orderCards(cards.map(c => c.id), this.settings.cardOrder ?? [])
+  private renderColumn(
+    parent: HTMLElement,
+    column: Column,
+    layout: Record<Column, string[]>,
+    cards: { id: string; name: string; draw: (card: HTMLElement) => void }[],
+  ) {
+    const ids = layout[column]
     const visible = ids.filter(id => !this.isHidden(id))
     for (const id of visible) {
       const card = cards.find(c => c.id === id)!
       const el = this.card(parent, card.name, id)
       if (this.insCustomizing) {
-        const controls = el.querySelector('.ins-card-title')?.createDiv('ins-card-controls')
-        if (controls) {
+        const title = el.querySelector<HTMLElement>('.ins-card-title')
+        if (title) {
+          const handle = createDiv({ cls: 'ins-drag-handle', attr: { 'aria-label': 'Drag to move' } })
+          setIcon(handle, 'grip-vertical')
+          title.prepend(handle)
+          const controls = title.createDiv('ins-card-controls')
+          const other: Column = column === 'left' ? 'right' : 'left'
           this.iconButton(controls, 'arrow-up', 'Move up', visible.indexOf(id) === 0,
             () => this.update(() => { this.settings.cardOrder = moveCard(ids, visible, id, -1, this.settings.cardOrder) }))
           this.iconButton(controls, 'arrow-down', 'Move down', visible.indexOf(id) === visible.length - 1,
             () => this.update(() => { this.settings.cardOrder = moveCard(ids, visible, id, 1, this.settings.cardOrder) }))
+          this.iconButton(controls, column === 'left' ? 'arrow-right-to-line' : 'arrow-left-to-line',
+            `Move to the ${other} column`, false,
+            () => this.update(() => {
+              this.settings.cardColumns = { ...this.settings.cardColumns, [id]: other }
+              // No saved position: it goes to the bottom of the other column
+              this.settings.cardOrder = this.settings.cardOrder.filter(x => x !== id)
+            }))
           this.hideButton(controls, id)
         }
       }
       card.draw(el)
     }
+  }
+
+  /** Customize mode: drag cards by their handle, within or between the columns. */
+  private enableDragging(left: HTMLElement, right: HTMLElement) {
+    const options: Sortable.Options = {
+      group: 'ins-cards',
+      handle: '.ins-drag-handle',
+      draggable: '.ins-card[data-card]',
+      animation: 150,
+      ghostClass: 'ins-drag-ghost',
+      chosenClass: 'ins-drag-chosen',
+      onEnd: () => {
+        const idsIn = (col: HTMLElement) => [...col.children]
+          .map(el => (el as HTMLElement).dataset['card'])
+          .filter((id): id is string => !!id)
+        const { columns, order } = layoutAfterDrop(idsIn(left), idsIn(right),
+          this.settings.cardColumns ?? {}, this.settings.cardOrder ?? [])
+        this.update(() => {
+          this.settings.cardColumns = columns
+          this.settings.cardOrder = order
+        })
+      },
+    }
+    this.sortables.push(Sortable.create(left, options), Sortable.create(right, options))
   }
 
   private isHidden(id: string): boolean {
@@ -571,8 +623,20 @@ export class InsightsView extends ItemView {
       return
     }
     this.legend(card, m.series)
+    const mode = this.settings.valueMode ?? 'percent'
+    // Date groups are few and in order: upright columns, like the month chart
+    if (builtinDimension(dim)) {
+      // In % mode an "All" column first gives the usual mix to compare with
+      const columns = mode === 'percent' ? [overallBreakdown(m.entries, m.tracked, 'All'), ...groups] : groups
+      const chart = drawTrend(card.createDiv('ins-chart-wrap ins-columns-wrap'),
+        columns.map(g => ({ label: g.label, tooltip: g.label === 'All' ? 'All entries' : g.label, mix: g.mix, entries: g.entries })),
+        m.series,
+        { mode, onColumnClick: (i) => { if (columns[i].key !== '__all__') this.addFilter(dim, columns[i].key, columns[i].label) } })
+      this.charts.push(chart)
+      return
+    }
     const rows = [overallBreakdown(m.entries, m.tracked, 'All entries'), ...groups.slice(0, MAX_GROUPS)]
-    this.charts.push(drawShares(card, rows, m.series, this.settings.valueMode ?? 'percent', (i) => {
+    this.charts.push(drawShares(card, rows, m.series, mode, (i) => {
       if (i > 0) this.addFilter(dim, rows[i].key, rows[i].label)
     }))
     if (groups.length > MAX_GROUPS) {

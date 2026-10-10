@@ -392,3 +392,39 @@ export function moveCard(column: string[], visible: string[], id: string, delta:
   ;[order[a], order[b]] = [order[b], order[a]]
   return [...order, ...saved.filter(s => !order.includes(s))]
 }
+
+export type Column = 'left' | 'right'
+
+/**
+ * The cards of each column, in order: a card's saved column (or its default),
+ * sorted by the saved order. Hidden cards are included; the caller skips them.
+ */
+export function layoutColumns(
+  cards: { id: string; column: Column }[],
+  savedColumns: Record<string, Column>,
+  savedOrder: string[],
+): Record<Column, string[]> {
+  const columnOf = (c: { id: string; column: Column }) => savedColumns[c.id] ?? c.column
+  return {
+    left: orderCards(cards.filter(c => columnOf(c) === 'left').map(c => c.id), savedOrder),
+    right: orderCards(cards.filter(c => columnOf(c) === 'right').map(c => c.id), savedOrder),
+  }
+}
+
+/**
+ * Saved columns and order after cards were dragged: `left` and `right` are the
+ * shown cards as they now sit. Cards not shown keep their saved column and go
+ * after them in the order.
+ */
+export function layoutAfterDrop(
+  left: string[],
+  right: string[],
+  savedColumns: Record<string, Column>,
+  savedOrder: string[],
+): { columns: Record<string, Column>; order: string[] } {
+  const columns = { ...savedColumns }
+  for (const id of left) columns[id] = 'left'
+  for (const id of right) columns[id] = 'right'
+  const shown = new Set([...left, ...right])
+  return { columns, order: [...left, ...right, ...savedOrder.filter(id => !shown.has(id))] }
+}

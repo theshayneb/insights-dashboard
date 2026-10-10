@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   JournalEntry, applyFilters, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
-  discoverProperties, entriesSince, entryDate, findLinks, getProperty, moveCard, normalizeValues,
+  discoverProperties, entriesSince, entryDate, findLinks, getProperty, layoutAfterDrop, layoutColumns, moveCard, normalizeValues,
   orderCards, orderValues, overallBreakdown, seasonOf, streaks, valuesOf,
 } from '../src/journal'
 
@@ -156,5 +156,24 @@ describe('card order', () => {
     expect(moveCard(['a', 'b', 'c'], ['a', 'c'], 'c', -1, ['x'])).toEqual(['c', 'b', 'a', 'x'])
     expect(moveCard(['a', 'b', 'c'], ['a', 'b', 'c'], 'a', 1, [])).toEqual(['b', 'a', 'c'])
     expect(moveCard(['a', 'b'], ['a', 'b'], 'a', -1, ['s'])).toEqual(['s'])  // already first
+  })
+
+  it('puts cards in their saved column, in the saved order', () => {
+    const cards = [
+      { id: 'links', column: 'left' as const }, { id: 'trend', column: 'left' as const },
+      { id: 'pie:mood', column: 'right' as const }, { id: 'pie:weather', column: 'right' as const },
+    ]
+    expect(layoutColumns(cards, {}, [])).toEqual({ left: ['links', 'trend'], right: ['pie:mood', 'pie:weather'] })
+    expect(layoutColumns(cards, { 'pie:weather': 'left', links: 'right' }, ['pie:weather', 'trend'])).toEqual({
+      left: ['pie:weather', 'trend'],
+      right: ['links', 'pie:mood'],
+    })
+  })
+
+  it('saves columns and order after a drop, keeping hidden cards', () => {
+    expect(layoutAfterDrop(['trend', 'pie:mood'], ['links'], { x: 'right' }, ['links', 'x', 'trend'])).toEqual({
+      columns: { x: 'right', trend: 'left', 'pie:mood': 'left', links: 'right' },
+      order: ['trend', 'pie:mood', 'links', 'x'],
+    })
   })
 })

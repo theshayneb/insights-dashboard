@@ -14,17 +14,23 @@ export function formatCount(n: number): string {
 }
 
 /**
- * Monthly bars stacked by tracked value (bottom = first value), like
- * PennyWallet's monthly expense chart; each bar is labelled with its entries.
+ * Upright columns stacked by tracked value (bottom = first value), like
+ * PennyWallet's monthly expense chart; each column is labelled with its entries.
+ * Used for months and for short, ordered groups (weekdays, seasons). In
+ * 'percent' mode every column fills to 100%. Clicking a column calls
+ * `onColumnClick` with its index.
  */
 export function drawTrend(
   container: HTMLElement,
   months: { label: string; tooltip: string; mix: ReadonlyMap<string, number>; entries: number }[],
   series: Series[],
+  { mode = 'count', onColumnClick }: { mode?: 'percent' | 'count'; onColumnClick?: (index: number) => void } = {},
 ): Chart {
   const colors = getThemeColors()
+  if (onColumnClick) container.addClass('is-clickable')
   const canvas = container.createEl('canvas')
-  const values = series.map(s => months.map(month => month.mix.get(s.key) ?? 0))
+  const pct = (i: number, key: string) => months[i].entries ? ((months[i].mix.get(key) ?? 0) / months[i].entries) * 100 : 0
+  const values = series.map(s => months.map((month, i) => mode === 'percent' ? pct(i, s.key) : month.mix.get(s.key) ?? 0))
   const topIndex = months.map((_, i) => {
     for (let c = values.length - 1; c >= 0; c--) if (values[c][i] > 0) return c
     return -1
@@ -48,6 +54,9 @@ export function drawTrend(
       maintainAspectRatio: false,
       layout: { padding: { top: 18 } },
       interaction: { mode: 'index', intersect: false },
+      onClick: onColumnClick
+        ? (_e, elements) => { if (elements.length) onColumnClick(elements[0].index) }
+        : undefined,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -55,7 +64,12 @@ export function drawTrend(
           itemSort: (a, b) => b.datasetIndex - a.datasetIndex,
           callbacks: {
             title: (items) => months[items[0].dataIndex].tooltip,
-            label: (ctx) => `${ctx.dataset.label ?? ''}: ${formatCount(ctx.raw as number)}`,
+            label: (ctx) => {
+              const count = months[ctx.dataIndex].mix.get(series[ctx.datasetIndex].key) ?? 0
+              return mode === 'percent'
+                ? `${ctx.dataset.label ?? ''}: ${Math.round(ctx.raw as number)}% (${formatCount(count)})`
+                : `${ctx.dataset.label ?? ''}: ${formatCount(count)}`
+            },
             footer: (items) => items.length ? entriesText(months[items[0].dataIndex].entries) : '',
           },
         },
@@ -75,9 +89,15 @@ export function drawTrend(
         y: {
           stacked: true,
           beginAtZero: true,
+          ...(mode === 'percent' ? { max: 100 } : {}),
           border: { display: false },
           grid: { color: colors.grid },
-          ticks: { color: colors.muted, maxTicksLimit: 6, precision: 0 },
+          ticks: {
+            color: colors.muted,
+            maxTicksLimit: 6,
+            precision: 0,
+            callback: (v) => mode === 'percent' ? `${v as number}%` : String(v),
+          },
         },
       },
     },
