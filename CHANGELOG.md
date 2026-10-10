@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.6] - 2026-10-10
+
+### Added
+- Purchases block: put
+  ````
+  ```insights-purchases
+  ```
+  ````
+  in a note (or run "Insert purchases block") to list the PennyWallet transactions whose note links to it (e.g. "[[Masala Chai]] 2 tins") or that are tagged with its name (e.g. `masala_chai`); aliases count too. It shows how many times you bought it, the total, when you last did, how often you usually do and when the next one is due, then the transactions (click one to open its month). Options, one per line: `name: Other name, …`, `tag: tea`, `limit: 50`.
+- Settings → PennyWallet folder, if it isn't PennyWallet Mod's own setting.
+
 ## [0.0.5] - 2026-10-10
 
 ### Added

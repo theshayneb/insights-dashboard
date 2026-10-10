@@ -1,6 +1,7 @@
-import { Plugin, WorkspaceLeaf } from 'obsidian'
+import { Editor, Plugin, WorkspaceLeaf } from 'obsidian'
 import { DEFAULT_SETTINGS, InsightsSettings, InsightsSettingTab, migrateSettings } from './settings'
 import { InsightsView, INSIGHTS_VIEW_TYPE } from './view/InsightsView'
+import { PURCHASES_BLOCK, PurchasesBlock } from './view/PurchasesBlock'
 
 export default class InsightsDashboardPlugin extends Plugin {
   settings: InsightsSettings = { ...DEFAULT_SETTINGS }
@@ -12,6 +13,16 @@ export default class InsightsDashboardPlugin extends Plugin {
     this.addRibbonIcon('smile', 'Open insights dashboard', () => { void this.openDashboard() })
     this.addCommand({ id: 'open', name: 'Open dashboard', callback: () => { void this.openDashboard() } })
     this.addSettingTab(new InsightsSettingTab(this.app, this))
+
+    // ```insights-purchases``` in a note: the PennyWallet transactions about it
+    this.registerMarkdownCodeBlockProcessor(PURCHASES_BLOCK, (source, el, ctx) => {
+      ctx.addChild(new PurchasesBlock(el, this.app, source, ctx, () => this.settings.pennyWalletFolder ?? ''))
+    })
+    this.addCommand({
+      id: 'insert-purchases',
+      name: 'Insert purchases block',
+      editorCallback: (editor: Editor) => editor.replaceSelection(`\`\`\`${PURCHASES_BLOCK}\n\`\`\`\n`),
+    })
   }
 
   // Called by Obsidian when data.json changes on disk, e.g. synced from another device.

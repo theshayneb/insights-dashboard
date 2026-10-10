@@ -30,6 +30,19 @@ On a dashboard:
 - A property that links to notes, like `SOTD: "[[Blue Song]]"`, brings in the linked notes' properties: **SOTD → Artist**.
 - Notes linked anywhere in a note (properties or text) are grouped by their tags: **Linked #tea**, **Linked #wardrobe_item**.
 
+## Purchases from PennyWallet
+
+In any note, add
+
+````
+```insights-purchases
+```
+````
+
+(or run **Insert purchases block**) to see the PennyWallet transactions about it: those whose note links to it, like `[[Masala Chai]] 2 tins`, or that are tagged with its name, like `masala_chai`. You get how many times you bought it, the total, when you last did, how often you usually do and when the next one is due, and the list (click one to open its month).
+
+Options, one per line: `name: Chai, Masala Chai` (match these instead of the note's name), `tag: tea` (also match this tag), `limit: 50` (rows listed).
+
 ## Your notes
 
 ```yaml

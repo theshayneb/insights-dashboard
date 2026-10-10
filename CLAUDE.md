@@ -27,5 +27,6 @@ npm run build
 - `src/journal.ts` is pure (no Obsidian imports) and unit-tested in `tests/`; the view is `src/view/InsightsView.ts`.
 - Dimension ids: a property is its lower-case name (`mood`); a linked note's property is `sotd>artist`; linked notes by tag are `@linked:tea`; dates are `@weekday`, `@season`, `@year`, `@month`.
 - Settings hold several dashboards (`dashboards`, `activeDashboard`); `migrateSettings` upgrades older data.json shapes, so keep it working for them.
+- `src/pennywallet.ts` reads PennyWallet (Mod) month files (`<folder>/YYYY-MM.md`, a Markdown table per month; see PennyWallet's `parseRow` for the column variants) for the `insights-purchases` block in `src/view/PurchasesBlock.ts`.
 - CSS classes use the `ins-` prefix. UI text is English and sentence case (the Obsidian lint rules require it).
 - Don't give subclasses of Obsidian classes members that may clash with undocumented internals; use an `ins` prefix.

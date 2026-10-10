@@ -25,6 +25,7 @@ export interface InsightsSettings {
   ignoredProperties: string[]  // properties never offered on a dashboard (lower case)
   dashboards: Dashboard[]
   activeDashboard: string      // id
+  pennyWalletFolder: string    // PennyWallet's month files; '' = PennyWallet Mod's own setting
 }
 
 const JOURNAL_DASHBOARD: Dashboard = {
@@ -48,6 +49,7 @@ export const DEFAULT_SETTINGS: InsightsSettings = {
   ignoredProperties: ['tags', 'aliases', 'cssclasses'],
   dashboards: [JOURNAL_DASHBOARD],
   activeDashboard: 'journal',
+  pennyWalletFolder: '',
 }
 
 /** A new dashboard: tracks its most used property, compares with what's picked automatically. */
@@ -79,6 +81,7 @@ export function migrateSettings(data: Record<string, unknown> | null): InsightsS
     ignoredProperties: Array.isArray(d['ignoredProperties']) ? d['ignoredProperties'] as string[] : DEFAULT_SETTINGS.ignoredProperties,
     dashboards: Array.isArray(d['dashboards']) ? (d['dashboards'] as Partial<Dashboard>[]).map(x => ({ ...JOURNAL_DASHBOARD, ...x }) as Dashboard) : [],
     activeDashboard: typeof d['activeDashboard'] === 'string' ? d['activeDashboard'] : '',
+    pennyWalletFolder: typeof d['pennyWalletFolder'] === 'string' ? d['pennyWalletFolder'] : '',
   }
   if (!Array.isArray(d['dashboards'])) {
     const journal: Dashboard = { ...JOURNAL_DASHBOARD }
@@ -231,6 +234,11 @@ export class InsightsSettingTab extends PluginSettingTab {
       settings.dateProperty, 'date', (value) => {
         settings.dateProperty = value.trim()
         return settings.dateProperty
+      })
+    text('PennyWallet folder', 'Where PennyWallet keeps its month files, for the purchases block. Leave empty to use PennyWallet Mod\u2019s own setting.',
+      settings.pennyWalletFolder ?? '', 'PennyWallet', (value) => {
+        settings.pennyWalletFolder = value.trim().replace(/^\/+|\/+$/g, '')
+        return settings.pennyWalletFolder
       })
     text('Ignored properties', 'Properties never offered on a dashboard, separated by commas (also when they come from linked notes). The date property is always left out.',
       settings.ignoredProperties.join(', '), 'tags, aliases, cssclasses', (value) => {

@@ -681,6 +681,82 @@
   text-align: right;
 }
 
+/* Purchases block (PennyWallet transactions in a note) */
+.ins-purchases {
+  margin: 0.5em 0;
+}
+
+.ins-purchases .ins-card-title {
+  justify-content: flex-start;
+  align-items: baseline;
+}
+
+.ins-purchases-for {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--text-faint);
+}
+
+.ins-purchases .ins-stat-value {
+  font-size: 18px;
+}
+
+.ins-purchases-stats {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin-bottom: 10px;
+}
+
+.ins-purchases-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ins-purchase-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 4px;
+  font-size: 13px;
+  border-bottom: 0.5px solid var(--background-modifier-border);
+  cursor: pointer;
+}
+
+.ins-purchase-row:last-child {
+  border-bottom: none;
+}
+
+.ins-purchase-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.ins-purchase-date {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-purchase-note {
+  color: var(--text-normal);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ins-purchase-wallet {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.ins-purchase-amount {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+  text-align: right;
+}
+
+.ins-purchase-amount.is-refund {
+  color: var(--color-green);
+}
+
 /* Dragging cards (customize mode) */
 .ins-drag-handle {
   display: inline-flex;
