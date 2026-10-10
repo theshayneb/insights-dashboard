@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.4] - 2026-10-10
+
+### Added
+- Mood colors: Great is green, Good yellow, Okay orange and Bad light red, and they come in that order in every chart and legend.
+- Customize: a color picker for each value of what you track (moods, weather, …). Values with a chosen color come first, in that order; "Reset colors" goes back to the automatic ones.
+
 ## [0.0.3] - 2026-10-10
 
 ### Added

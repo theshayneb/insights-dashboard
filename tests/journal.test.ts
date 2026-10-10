@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  JournalEntry, applyFilters, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
+  JournalEntry, applyFilters, colorValues, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
   discoverProperties, entriesSince, entryDate, findLinks, getProperty, layoutAfterDrop, layoutColumns, moveCard, normalizeValues,
   orderCards, orderValues, overallBreakdown, seasonOf, streaks, valuesOf,
 } from '../src/journal'
@@ -175,5 +175,15 @@ describe('card order', () => {
       columns: { x: 'right', trend: 'left', 'pie:mood': 'left', links: 'right' },
       order: ['trend', 'pie:mood', 'links', 'x'],
     })
+  })
+})
+
+describe('colorValues', () => {
+  it('puts chosen colors first, in chosen order, and gives the rest unused palette colors', () => {
+    const { order, colors } = colorValues(['okay', 'meh', 'great', 'bad'],
+      { great: '#00ff00', good: '#ffff00', okay: '#ff9900', bad: '#ff8888' }, ['#ff9900', '#0000ff'])
+    expect(order).toEqual(['great', 'okay', 'bad', 'meh'])
+    expect(colors.get('okay')).toBe('#ff9900')
+    expect(colors.get('meh')).toBe('#0000ff')  // the palette's orange is taken by "okay"
   })
 })

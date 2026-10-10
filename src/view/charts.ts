@@ -31,11 +31,6 @@ export function getThemeColors() {
   }
 }
 
-/** One color per key, in order, cycling through `palette`. */
-export function assignColors(keys: readonly string[], palette: readonly string[]): Map<string, string> {
-  return new Map(keys.map((key, i) => [key, palette[i % palette.length]]))
-}
-
 /** Returns the last `count` months (YYYY-MM) ending at (and including) `endYearMonth`. */
 export function getMonthRangeEndingAt(endYearMonth: string, count: number): string[] {
   const [y, m] = endYearMonth.split('-').map(Number)

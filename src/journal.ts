@@ -428,3 +428,27 @@ export function layoutAfterDrop(
   const shown = new Set([...left, ...right])
   return { columns, order: [...left, ...right, ...savedOrder.filter(id => !shown.has(id))] }
 }
+
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+/**
+ * Colors and order for a dimension's values. Values with a chosen color come
+ * first, in the order they were chosen (e.g. Great, Good, Okay, Bad); the rest
+ * keep `order` and take palette colors not already chosen.
+ */
+export function colorValues(
+  order: string[],
+  chosen: Record<string, string>,
+  palette: string[],
+): { order: string[]; colors: Map<string, string> } {
+  const present = new Set(order)
+  const chosenKeys = Object.keys(chosen).filter(k => present.has(k))
+  const rest = order.filter(k => !(k in chosen))
+  const taken = new Set(Object.values(chosen).map(c => c.toLowerCase()))
+  const free = palette.filter(c => !taken.has(c.toLowerCase()))
+  const pool = free.length ? free : palette
+  const colors = new Map<string, string>()
+  for (const k of chosenKeys) colors.set(k, chosen[k])
+  rest.forEach((k, i) => colors.set(k, pool[i % pool.length]))
+  return { order: [...chosenKeys, ...rest], colors }
+}

@@ -19,6 +19,7 @@ export interface InsightsSettings {
   hiddenCards: string[]
   cardOrder: string[]
   cardColumns: Record<string, Column>  // cards moved to the other column
+  valueColors: Record<string, Record<string, string>>  // dimension id → value key → color; chosen values come first
 }
 
 export const DEFAULT_SETTINGS: InsightsSettings = {
@@ -33,6 +34,9 @@ export const DEFAULT_SETTINGS: InsightsSettings = {
   hiddenCards: [],
   cardOrder: [],
   cardColumns: {},
+  valueColors: {
+    mood: { great: '#2EAD6B', good: '#F2CB3A', okay: '#F0901E', bad: '#F08A8A' },
+  },
 }
 
 /** Settings from data.json, with defaults for anything missing; 0.0.1's mood settings carry over. */

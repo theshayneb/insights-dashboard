@@ -36,6 +36,6 @@ Weather: Sunny
 - **Compare with**: toggle which properties (and Day of week, Season, Month of year) it's compared with.
 - **Bars**: % of each group, or entry counts.
 - **Filters**: click a pie slice or a bar to narrow the whole dashboard to it (e.g. only rainy days); stack several; "Search these notes" opens the matching notes.
-- **Customize**: hide any card or summary tile, drag cards around (into either column), restore hidden ones.
+- **Customize**: hide any card or summary tile, drag cards around (into either column), restore hidden ones, and pick a color for each value (Great is green, Good yellow, Okay orange and Bad light red to start).
 
 Your choices are saved (and synced with Obsidian Sync). The journal tag, the date property and properties to ignore are in **Settings → Insights Dashboard**.

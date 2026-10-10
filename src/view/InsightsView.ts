@@ -3,11 +3,11 @@ import { Chart } from 'chart.js'
 import Sortable from 'sortablejs'
 import type InsightsDashboardPlugin from '../main'
 import type { Range } from '../settings'
-import { assignColors, drawPie, formatMonth, getMonthRangeEndingAt, getThemeColors } from './charts'
+import { drawPie, formatMonth, getMonthRangeEndingAt, getThemeColors } from './charts'
 import { Series, drawShares, drawTrend, entriesText } from './journalCharts'
 import {
   BUILTIN_DIMENSIONS, Breakdown, Filter, JournalEntry, Link, Tally,
-  Column, applyFilters, breakdownByDimension, breakdownByGroup, builtinDimension, buildEntry, countValues,
+  Column, applyFilters, breakdownByDimension, colorValues, breakdownByGroup, builtinDimension, buildEntry, countValues,
   discoverProperties, entriesSince, findLinks, layoutAfterDrop, layoutColumns, moveCard, orderValues,
   overallBreakdown, streaks, valuesOf, weekdayName, yearMonthOf,
 } from '../journal'
@@ -155,10 +155,8 @@ export class InsightsView extends ItemView {
     const entries = applyFilters(entriesSince(all, this.since()), s.filters ?? [])
 
     const trackedTally = countValues(entries, e => valuesOf(e, tracked))
-    const order = orderValues(trackedTally, tracked)
+    const { order, colors } = this.colorsFor(tracked, trackedTally)
     const labels = new Map(trackedTally.map(v => [v.key, v.label]))
-    // Colors follow the display order, so numeric values (1–5) keep the same colors
-    const colors = assignColors(order, getThemeColors().palette)
     return {
       all,
       entries,
@@ -169,6 +167,11 @@ export class InsightsView extends ItemView {
       series: order.map(key => ({ key, label: labels.get(key) ?? key, color: colors.get(key)! })),
       trackedTally,
     }
+  }
+
+  /** A dimension's values in display order, with the chosen colors (Settings' valueColors) or palette ones. */
+  private colorsFor(dim: string, tally: Tally[]): { order: string[]; colors: Map<string, string> } {
+    return colorValues(orderValues(tally, dim), this.settings.valueColors?.[dim] ?? {}, getThemeColors().palette)
   }
 
   private dimName(dims: { id: string; name: string }[], id: string): string {
@@ -197,7 +200,10 @@ export class InsightsView extends ItemView {
 
     this.renderToolbar(contentEl, m)
     this.renderFilters(contentEl, m)
-    if (this.insCustomizing) this.renderHiddenTray(contentEl, m)
+    if (this.insCustomizing) {
+      this.renderHiddenTray(contentEl, m)
+      this.renderColorTray(contentEl, m)
+    }
 
     if (m.entries.length === 0) {
       contentEl.createDiv('ins-empty').createDiv('ins-card').createEl('p', {
@@ -487,6 +493,37 @@ export class InsightsView extends ItemView {
     }
   }
 
+  /** In customize mode: a color picker for each value of the tracked dimension. */
+  private renderColorTray(parent: HTMLElement, m: Model) {
+    if (m.series.length === 0) return
+    const tray = parent.createDiv('ins-hidden-tray ins-color-tray')
+    tray.createSpan({ text: `${m.trackedName} colors`, cls: 'ins-toolbar-label' })
+    const save = (change: (colors: Record<string, string>) => void) => this.update(() => {
+      // Keep the values shown in their current order, so a newly colored one doesn't jump to the front
+      const current = { ...(this.settings.valueColors?.[m.tracked] ?? {}) }
+      change(current)
+      const ordered: Record<string, string> = {}
+      for (const s of m.series) if (current[s.key]) ordered[s.key] = current[s.key]
+      for (const [k, c] of Object.entries(current)) if (!(k in ordered)) ordered[k] = c
+      this.settings.valueColors = { ...this.settings.valueColors, [m.tracked]: ordered }
+    })
+    for (const s of m.series) {
+      const item = tray.createEl('label', { cls: 'ins-color-item' })
+      const input = item.createEl('input', { type: 'color', cls: 'ins-color-input' })
+      input.value = s.color
+      item.createSpan({ text: s.label })
+      input.addEventListener('change', () => save(colors => { colors[s.key] = input.value }))
+    }
+    if (Object.keys(this.settings.valueColors?.[m.tracked] ?? {}).length > 0) {
+      const reset = tray.createEl('button', { text: 'Reset colors', cls: 'ins-link-btn' })
+      reset.addEventListener('click', () => this.update(() => {
+        const next = { ...this.settings.valueColors }
+        delete next[m.tracked]
+        this.settings.valueColors = next
+      }))
+    }
+  }
+
   private renderSummary(parent: HTMLElement, m: Model) {
     const tiles = TILES.filter(t => !this.isHidden(t.id))
     if (tiles.length === 0) return
@@ -651,14 +688,14 @@ export class InsightsView extends ItemView {
       return
     }
     const labels = new Map(tally.map(v => [v.key, v.label]))
-    const isTracked = dim === m.tracked
-    const order = isTracked ? m.series.map(s => s.key) : orderValues(tally, dim)
+    const { order, colors } = dim === m.tracked
+      ? { order: m.series.map(s => s.key), colors: new Map(m.series.map(s => [s.key, s.color])) }
+      : this.colorsFor(dim, tally)
     const counts = new Map(order.map(key => [key, tally.find(v => v.key === key)?.count ?? 0]))
-    const colorOf = new Map(m.series.map(s => [s.key, s.color]))
     this.charts.push(drawPie(card, counts,
       (key) => { if (key) this.addFilter(dim, key, labels.get(key) ?? key) },
       (key) => labels.get(key) ?? key,
-      isTracked ? (key) => colorOf.get(key) : undefined))
+      (key) => colors.get(key)))
   }
 
   private chip(parent: HTMLElement, label: string, color: string | undefined) {

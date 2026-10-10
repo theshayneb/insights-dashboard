@@ -579,6 +579,35 @@
   margin: 6px 0 0;
 }
 
+/* Value colors (customize mode) */
+.ins-color-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.ins-color-input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.ins-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.ins-color-input::-webkit-color-swatch {
+  border: 0.5px solid var(--background-modifier-border-hover);
+  border-radius: 50%;
+}
+
 /* Dragging cards (customize mode) */
 .ins-drag-handle {
   display: inline-flex;
