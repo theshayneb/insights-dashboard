@@ -5,19 +5,43 @@ import { type Column, type Filter, type Source, sourceLabel } from './journal'
 export type Range = '3m' | '6m' | '12m' | 'all'
 export type ValueMode = 'percent' | 'count'
 
-/** One dashboard: which notes it reads, and the choices made on it. */
-export interface Dashboard {
+/** One question on a dashboard, as a tab: what it tracks and compares, its filters and card layout. */
+export interface Tab {
   id: string
-  source: Source
+  name: string                 // '' = named after what it tracks
   tracked: string              // dimension id charted against the others (e.g. "mood"); '' = most used
   compare: string[] | null     // dimension ids it is compared with; null = picked automatically
   filters: Filter[]
-  range: Range
-  valueMode: ValueMode         // breakdown bars as % of each group or as note counts
   hiddenCards: string[]
   cardOrder: string[]
   cardColumns: Record<string, Column>  // cards moved to the other column
+}
+
+/** One dashboard: which notes it reads, its tabs, and choices shared by its tabs. */
+export interface Dashboard {
+  id: string
+  source: Source
+  tabs: Tab[]
+  activeTab: string            // id
+  range: Range
+  valueMode: ValueMode         // breakdown bars as % of each group or as note counts
   valueColors: Record<string, Record<string, string>>  // dimension id → value key → color; chosen values come first
+}
+
+const TAB_FIELDS = ['tracked', 'compare', 'filters', 'hiddenCards', 'cardOrder', 'cardColumns'] as const
+
+export function newTab(tracked = '', compare: string[] | null = null): Tab {
+  return {
+    id: `t${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`,
+    name: '',
+    tracked,
+    compare,
+    filters: [],
+    // Streaks mostly make sense for journals
+    hiddenCards: ['tile:current-streak', 'tile:longest-streak'],
+    cardOrder: [],
+    cardColumns: {},
+  }
 }
 
 export interface InsightsSettings {
@@ -28,17 +52,24 @@ export interface InsightsSettings {
   pennyWalletFolder: string    // PennyWallet's month files; '' = PennyWallet Mod's own setting
 }
 
-const JOURNAL_DASHBOARD: Dashboard = {
-  id: 'journal',
-  source: { kind: 'tag', value: 'journal_entry' },
+const JOURNAL_TAB: Tab = {
+  id: 'mood',
+  name: '',
   tracked: 'mood',
   compare: ['activities', 'weather', '@weekday', '@season'],
   filters: [],
-  range: '12m',
-  valueMode: 'percent',
   hiddenCards: [],
   cardOrder: [],
   cardColumns: {},
+}
+
+const JOURNAL_DASHBOARD: Dashboard = {
+  id: 'journal',
+  source: { kind: 'tag', value: 'journal_entry' },
+  tabs: [JOURNAL_TAB],
+  activeTab: 'mood',
+  range: '12m',
+  valueMode: 'percent',
   valueColors: {
     mood: { great: '#2EAD6B', good: '#F2CB3A', okay: '#F0901E', bad: '#F08A8A' },
   },
@@ -52,22 +83,34 @@ export const DEFAULT_SETTINGS: InsightsSettings = {
   pennyWalletFolder: '',
 }
 
-/** A new dashboard: tracks its most used property, compares with what's picked automatically. */
+/** A new dashboard, with one tab that tracks its most used property and compares with what's picked automatically. */
 export function newDashboard(source: Source): Dashboard {
+  const tab = newTab()
   return {
     id: `d${Date.now().toString(36)}`,
     source,
-    tracked: '',
-    compare: null,
-    filters: [],
+    tabs: [tab],
+    activeTab: tab.id,
     range: 'all',
     valueMode: 'percent',
-    // Streaks mostly make sense for journals
-    hiddenCards: ['tile:current-streak', 'tile:longest-streak'],
-    cardOrder: [],
-    cardColumns: {},
     valueColors: {},
   }
+}
+
+/** A saved dashboard, filled in; 0.0.5–0.0.6 dashboards had one question's fields on themselves. */
+function readDashboard(raw: Record<string, unknown>): Dashboard {
+  const dash = { ...JOURNAL_DASHBOARD, ...raw } as Dashboard
+  if (!Array.isArray(raw['tabs'])) {
+    const tab: Tab = { ...JOURNAL_TAB, id: 'main' }
+    for (const key of TAB_FIELDS) if (key in raw) (tab as unknown as Record<string, unknown>)[key] = raw[key]
+    dash.tabs = [tab]
+    for (const key of TAB_FIELDS) delete (dash as unknown as Record<string, unknown>)[key]
+  } else {
+    dash.tabs = (raw['tabs'] as Partial<Tab>[]).map(t => ({ ...JOURNAL_TAB, ...t }))
+  }
+  if (dash.tabs.length === 0) dash.tabs = [newTab()]
+  if (!dash.tabs.some(t => t.id === dash.activeTab)) dash.activeTab = dash.tabs[0].id
+  return dash
 }
 
 /**
@@ -79,26 +122,48 @@ export function migrateSettings(data: Record<string, unknown> | null): InsightsS
   const settings: InsightsSettings = {
     dateProperty: typeof d['dateProperty'] === 'string' ? d['dateProperty'] : DEFAULT_SETTINGS.dateProperty,
     ignoredProperties: Array.isArray(d['ignoredProperties']) ? d['ignoredProperties'] as string[] : DEFAULT_SETTINGS.ignoredProperties,
-    dashboards: Array.isArray(d['dashboards']) ? (d['dashboards'] as Partial<Dashboard>[]).map(x => ({ ...JOURNAL_DASHBOARD, ...x }) as Dashboard) : [],
+    dashboards: Array.isArray(d['dashboards']) ? (d['dashboards'] as Record<string, unknown>[]).map(readDashboard) : [],
     activeDashboard: typeof d['activeDashboard'] === 'string' ? d['activeDashboard'] : '',
     pennyWalletFolder: typeof d['pennyWalletFolder'] === 'string' ? d['pennyWalletFolder'] : '',
   }
   if (!Array.isArray(d['dashboards'])) {
-    const journal: Dashboard = { ...JOURNAL_DASHBOARD }
-    if (typeof d['tag'] === 'string') journal.source = { kind: 'tag', value: d['tag'] }
-    for (const key of ['tracked', 'compare', 'filters', 'range', 'valueMode', 'hiddenCards', 'cardOrder', 'cardColumns', 'valueColors'] as const) {
-      if (key in d) (journal as unknown as Record<string, unknown>)[key] = d[key]
-    }
+    // 0.0.1–0.0.4: one journal dashboard in the top level
+    const raw: Record<string, unknown> = {}
+    for (const key of [...TAB_FIELDS, 'range', 'valueMode', 'valueColors']) if (key in d) raw[key] = d[key]
+    if (typeof d['tag'] === 'string') raw['source'] = { kind: 'tag', value: d['tag'] }
     if (typeof d['moodProperty'] === 'string' && !('tracked' in d)) {
-      journal.tracked = d['moodProperty'].toLowerCase()
+      raw['tracked'] = d['moodProperty'].toLowerCase()
       const factors = Array.isArray(d['factorProperties']) ? d['factorProperties'] as string[] : []
-      journal.compare = [...factors.map(f => f.toLowerCase()), '@weekday', '@season']
+      raw['compare'] = [...factors.map(f => f.toLowerCase()), '@weekday', '@season']
     }
-    settings.dashboards = [journal]
+    settings.dashboards = [readDashboard(raw)]
   }
-  if (settings.dashboards.length === 0) settings.dashboards = [{ ...JOURNAL_DASHBOARD }]
+  if (settings.dashboards.length === 0) settings.dashboards = [readDashboard({})]
   if (!settings.dashboards.some(x => x.id === settings.activeDashboard)) settings.activeDashboard = settings.dashboards[0].id
   return settings
+}
+
+/** Asks for a line of text, e.g. a tab name. */
+export class TextPromptModal extends Modal {
+  constructor(app: App, private readonly title: string, private readonly value: string, private readonly onDone: (value: string) => void) {
+    super(app)
+  }
+
+  onOpen() {
+    this.setTitle(this.title)
+    let value = this.value
+    const done = () => { this.close(); this.onDone(value.trim()) }
+    new Setting(this.contentEl).addText(text => {
+      text.setValue(value).onChange(v => { value = v })
+      text.inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); done() } })
+      window.setTimeout(() => text.inputEl.select(), 0)
+    })
+    new Setting(this.contentEl).addButton(btn => btn.setButtonText('Save').setCta().onClick(done))
+  }
+
+  onClose() {
+    this.contentEl.empty()
+  }
 }
 
 /** Asks where a new dashboard's notes come from: a tag, a folder or all notes. */
@@ -195,11 +260,14 @@ export class InsightsSettingTab extends PluginSettingTab {
     for (const dash of settings.dashboards) {
       new Setting(containerEl)
         .setName(sourceLabel(dash.source))
-        .addButton(btn => btn.setButtonText('Reset layout').setTooltip('Show every card again in its default column and order, and clear the filters.').onClick(() => {
-          dash.hiddenCards = []
-          dash.cardOrder = []
-          dash.cardColumns = {}
-          dash.filters = []
+        .setDesc(`${dash.tabs.length === 1 ? '1 tab' : `${dash.tabs.length} tabs`}`)
+        .addButton(btn => btn.setButtonText('Reset layout').setTooltip('In every tab: show every card again in its default column and order, and clear the filters.').onClick(() => {
+          for (const tab of dash.tabs) {
+            tab.hiddenCards = []
+            tab.cardOrder = []
+            tab.cardColumns = {}
+            tab.filters = []
+          }
           void this.plugin.saveSettings()
         }))
         .addExtraButton(btn => btn.setIcon('trash').setTooltip('Remove this dashboard').setDisabled(settings.dashboards.length === 1).onClick(() => {

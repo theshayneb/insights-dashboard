@@ -17,13 +17,13 @@ An Obsidian plugin that turns the properties of your notes, and of the notes the
 
 Pick a dashboard at the top left, or **New dashboard…** for the notes with a tag (e.g. `#outfit`), in a folder, or all notes. Each one remembers its own choices.
 
-On a dashboard:
+Each dashboard has **tabs**, one per question (e.g. "Mood", "Teas"): **+** adds one, and the active tab's ▾ menu renames, duplicates or removes it. On a tab:
 
-- **Track**: what the charts are about (Mood, Rating, Season, …).
-- **Compare with**: what it's compared with: the notes' own properties, **linked** ones, and dates (Day of week, Season, Year, Month of year).
+- **Track**: what the charts are about (Mood, Rating, Season, …), picked from a search box.
+- **Compare with**: what it's compared with; **+ Add** searches the notes' own properties, **linked** ones, and dates (Day of week, Season, Year, Month of year).
 - **Bars**: % of each group, or note counts.
 - **Filters**: click a pie slice, a bar or a list row to narrow everything to it; stack several; "Search these notes" opens the matching notes.
-- **Customize**: hide cards and tiles, drag cards around (into either column), and pick a color for each value.
+- **Customize**: hide cards and tiles, drag cards around (into either column), and pick a color for each value (colors match by words, so "great" also colors "😄 great").
 
 ### Linked notes
 

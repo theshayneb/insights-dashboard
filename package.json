@@ -1,6 +1,6 @@
 {
   "name": "insights-dashboard",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Obsidian plugin: a dashboard of how your journal notes' properties (mood, activities, weather) relate",
   "main": "main.js",
   "scripts": {

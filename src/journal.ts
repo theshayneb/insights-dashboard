@@ -548,16 +548,25 @@ export function colorValues(
   chosen: Record<string, string>,
   palette: string[],
 ): { order: string[]; colors: Map<string, string> } {
-  const present = new Set(order)
-  const chosenKeys = Object.keys(chosen).filter(k => present.has(k))
-  const rest = order.filter(k => !(k in chosen))
+  // Match chosen colors by their words, so "great" also colors "😄 great" or "Great!"
+  const byWords = new Map(Object.keys(chosen).map(k => [colorKey(k), k]))
+  const chosenFor = (k: string) => k in chosen ? k : byWords.get(colorKey(k))
+  const rank = new Map(Object.keys(chosen).map((k, i) => [k, i]))
+  const chosenKeys = order.filter(k => chosenFor(k) !== undefined)
+    .sort((a, b) => rank.get(chosenFor(a)!)! - rank.get(chosenFor(b)!)!)
+  const rest = order.filter(k => chosenFor(k) === undefined)
   const taken = new Set(Object.values(chosen).map(c => c.toLowerCase()))
   const free = palette.filter(c => !taken.has(c.toLowerCase()))
   const pool = free.length ? free : palette
   const colors = new Map<string, string>()
-  for (const k of chosenKeys) colors.set(k, chosen[k])
+  for (const k of chosenKeys) colors.set(k, chosen[chosenFor(k)!])
   rest.forEach((k, i) => colors.set(k, pool[i % pool.length]))
   return { order: [...chosenKeys, ...rest], colors }
+}
+
+/** A value's words and numbers only, for matching colors: "😄 Great!" → "great". */
+export function colorKey(key: string): string {
+  return key.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
 /**

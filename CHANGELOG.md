@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.7] - 2026-10-10
+
+### Added
+- Tabs: each dashboard has tabs, one per question (e.g. "Mood", "Teas", "Songs"), each with its own tracked property, comparisons, filters and card layout. **+** adds a tab (pick what it tracks); the active tab's ▾ menu renames, duplicates or removes it. Range, % / Count and colors are shared by a dashboard's tabs.
+
+### Changed
+- "Compare with" shows only what you compare with (× to remove) and **+ Add**, which opens a search box over every property, linked property and date, with how many notes have each. "Track" and "Add filter" use the same search instead of long lists.
+- Day of week, Season, Month of year and Year breakdowns are half width, so two sit side by side.
+
+### Fixed
+- Chosen colors now apply to values with emoji or punctuation: "great" colors "😄 great". Your Great / Good / Okay / Bad colors and their order now show up.
+
 ## [0.0.6] - 2026-10-10
 
 ### Added

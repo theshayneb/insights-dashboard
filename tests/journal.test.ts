@@ -240,3 +240,12 @@ describe('limitValues', () => {
     expect([...limitValues(['a', 'b'], tally, {}, 3)]).toEqual(['a', 'b'])
   })
 })
+
+describe('colorValues with emoji', () => {
+  it('matches chosen colors by their words, in the chosen order', () => {
+    const { order, colors } = colorValues(['😊 good', '😐 okay', '😄 great', '☹️ bad'],
+      { great: '#00ff00', good: '#ffff00', okay: '#ff9900', bad: '#ff8888' }, ['#123456'])
+    expect(order).toEqual(['😄 great', '😊 good', '😐 okay', '☹️ bad'])
+    expect(colors.get('😐 okay')).toBe('#ff9900')
+  })
+})

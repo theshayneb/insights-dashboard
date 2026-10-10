@@ -118,6 +118,24 @@
   min-width: 0;
 }
 
+/* The wide column wraps, so two half-width cards (date breakdowns) sit side by side */
+.ins-grid-left {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+}
+
+.ins-grid-left > * {
+  flex: 1 1 100%;
+  min-width: 0;
+  box-sizing: border-box;  /* widths include the padding, so two halves fit */
+}
+
+.ins-grid-left > .ins-card-half {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 280px;
+}
+
 /* Summary (5) beside recent entries (3); stacked when narrow */
 .ins-left-top {
   display: flex;
@@ -618,18 +636,79 @@
   max-width: 220px;
 }
 
-/* Compare chips, grouped: own properties, linked, dates */
-.ins-chip-group {
+/* Tabs: one per question on a dashboard */
+.ins-tabs {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 10px 20px 0;
+  border-bottom: 0.5px solid var(--background-modifier-border);
 }
 
-.ins-chip-group-label {
-  font-size: 11px;
+.ins-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ins-tab:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.ins-tab.is-active {
+  color: var(--text-normal);
+  font-weight: 600;
+  border-bottom-color: var(--interactive-accent);
+}
+
+.ins-tab-more,
+.ins-tab-add {
   color: var(--text-faint);
-  margin-left: 6px;
+}
+
+.ins-tab-more svg,
+.ins-tab-add svg,
+.ins-picker-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Track button and compare chips */
+.ins-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+}
+
+.ins-compare-chip.is-builtin {
+  font-style: italic;
+}
+
+/* Searchable pickers */
+.ins-picker-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ins-picker-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-faint);
 }
 
 /* Ranked "most often" list (properties with many values) */
@@ -825,7 +904,8 @@
 
   .ins-toolbar,
   .ins-filters,
-  .ins-hidden-tray {
+  .ins-hidden-tray,
+  .ins-tabs {
     padding: 10px 12px 0;
   }
 }

@@ -1,8 +1,8 @@
-import { App, CachedMetadata, DropdownComponent, ItemView, Menu, TFile, WorkspaceLeaf, debounce, getAllTags, getLinkpath, setIcon } from 'obsidian'
+import { App, CachedMetadata, DropdownComponent, FuzzyMatch, FuzzySuggestModal, ItemView, Menu, TFile, WorkspaceLeaf, debounce, getAllTags, getLinkpath, setIcon } from 'obsidian'
 import { Chart } from 'chart.js'
 import Sortable from 'sortablejs'
 import type InsightsDashboardPlugin from '../main'
-import { type Dashboard, type Range, NewDashboardModal, newDashboard } from '../settings'
+import { type Dashboard, type Range, type Tab, NewDashboardModal, TextPromptModal, newDashboard, newTab } from '../settings'
 import { OTHER_COLOR, drawPie, formatMonth, getMonthRangeEndingAt, getThemeColors } from './charts'
 import { Series, drawShares, drawTrend, entriesText } from './journalCharts'
 import {
@@ -85,7 +85,7 @@ export function readEntries(app: App, source: Source, dateProperty: string): Jou
 interface Model {
   all: JournalEntry[]
   entries: JournalEntry[]              // in range and matching the filters
-  dims: { id: string; name: string }[] // every property found, then the built-ins
+  dims: { id: string; name: string; notes: number }[] // every property found, then the built-ins
   tracked: string
   trackedName: string
   compare: string[]                    // compared dimensions that exist
@@ -114,6 +114,12 @@ export class InsightsView extends ItemView {
   getIcon() { return 'smile' }
 
   private get settings() { return this.plugin.settings }
+
+  /** The tab shown on the dashboard. */
+  private get tab(): Tab {
+    const dash = this.dash
+    return dash.tabs.find(t => t.id === dash.activeTab) ?? dash.tabs[0]
+  }
 
   /** The dashboard shown: the active one in the settings. */
   private get dash(): Dashboard {
@@ -166,17 +172,18 @@ export class InsightsView extends ItemView {
   private buildModel(): Model {
     const s = this.settings
     const dash = this.dash
+    const tab = this.tab
     const dateProperty = (s.dateProperty ?? '').trim() || 'date'
     const all = readEntries(this.app, dash.source, dateProperty)
     const props = discoverProperties(all, [...(s.ignoredProperties ?? []), dateProperty.toLowerCase()])
     const dims = [
-      ...props.map(p => ({ id: p.id, name: p.name })),
-      ...BUILTIN_DIMENSIONS.map(d => ({ id: d.id, name: d.name })),
+      ...props.map(p => ({ id: p.id, name: p.name, notes: p.entries })),
+      ...BUILTIN_DIMENSIONS.map(d => ({ id: d.id, name: d.name, notes: all.length })),
     ]
     const exists = (id: string) => dims.some(d => d.id === id)
     // A tracked property that no note has (yet) falls back to the most used one, without saving
-    const tracked = exists(dash.tracked) ? dash.tracked : (props[0]?.id ?? '@weekday')
-    const entries = applyFilters(entriesSince(all, this.since()), dash.filters ?? [])
+    const tracked = exists(tab.tracked) ? tab.tracked : (props[0]?.id ?? '@weekday')
+    const entries = applyFilters(entriesSince(all, this.since()), tab.filters ?? [])
 
     const fullTally = countValues(entries, e => valuesOf(e, tracked))
     const { order, colors } = this.colorsFor(tracked, fullTally)
@@ -201,7 +208,7 @@ export class InsightsView extends ItemView {
       dims,
       tracked,
       trackedName: this.dimName(dims, tracked),
-      compare: (dash.compare ?? this.autoCompare(props.map(p => p.id), tracked)).filter(id => id !== tracked && exists(id)),
+      compare: (tab.compare ?? this.autoCompare(props.map(p => p.id), tracked)).filter(id => id !== tracked && exists(id)),
       series,
       trackedTally,
       trackedOf,
@@ -222,7 +229,7 @@ export class InsightsView extends ItemView {
     return colorValues(orderValues(tally, dim), this.dash.valueColors?.[dim] ?? {}, getThemeColors().palette)
   }
 
-  private dimName(dims: { id: string; name: string }[], id: string): string {
+  private dimName(dims: { id: string; name: string; notes: number }[], id: string): string {
     return dims.find(d => d.id === id)?.name ?? builtinDimension(id)?.name ?? id
   }
 
@@ -247,6 +254,7 @@ export class InsightsView extends ItemView {
       return
     }
 
+    this.renderTabs(contentEl, m)
     this.renderToolbar(contentEl, m)
     this.renderFilters(contentEl, m)
     if (this.insCustomizing) {
@@ -278,7 +286,7 @@ export class InsightsView extends ItemView {
       ...this.leftCards(m).map(c => ({ ...c, column: 'left' as Column })),
       ...this.rightCards(m).map(c => ({ ...c, column: 'right' as Column })),
     ]
-    const layout = layoutColumns(cards, this.dash.cardColumns ?? {}, this.dash.cardOrder ?? [])
+    const layout = layoutColumns(cards, this.tab.cardColumns ?? {}, this.tab.cardOrder ?? [])
     this.renderColumn(left, 'left', layout, cards)
     this.renderColumn(right, 'right', layout, cards)
     if (this.insCustomizing) this.enableDragging(left, right)
@@ -324,42 +332,88 @@ export class InsightsView extends ItemView {
     customize.addEventListener('click', () => { this.insCustomizing = !this.insCustomizing; this.render() })
   }
 
+  /** The dashboard's questions, as tabs; the active one has a menu to rename, duplicate or remove it. */
+  private renderTabs(parent: HTMLElement, m: Model) {
+    const bar = parent.createDiv('ins-tabs')
+    const dash = this.dash
+    for (const tab of dash.tabs) {
+      const active = tab.id === this.tab.id
+      const name = tab.name || sentence(this.dimName(m.dims, tab.tracked || m.tracked))
+      const btn = bar.createEl('button', { cls: 'ins-tab' + (active ? ' is-active' : '') })
+      btn.createSpan({ text: name })
+      if (!active) {
+        btn.addEventListener('click', () => this.update(() => { dash.activeTab = tab.id }))
+        continue
+      }
+      const more = btn.createSpan({ cls: 'ins-tab-more', attr: { 'aria-label': 'Tab options' } })
+      setIcon(more, 'chevron-down')
+      btn.addEventListener('click', (ev) => {
+        const menu = new Menu()
+        menu.addItem(i => i.setTitle('Rename').setIcon('pencil').onClick(() => {
+          new TextPromptModal(this.app, 'Tab name', name, (value) => this.update(() => { tab.name = value })).open()
+        }))
+        menu.addItem(i => i.setTitle('Duplicate').setIcon('copy').onClick(() => this.update(() => {
+          const copy: Tab = { ...structuredClone(tab), id: newTab().id, name: tab.name ? `${tab.name} (copy)` : '' }
+          dash.tabs.splice(dash.tabs.indexOf(tab) + 1, 0, copy)
+          dash.activeTab = copy.id
+        })))
+        if (dash.tabs.length > 1) {
+          menu.addItem(i => i.setTitle('Remove').setIcon('trash').onClick(() => this.update(() => {
+            const index = dash.tabs.indexOf(tab)
+            dash.tabs.splice(index, 1)
+            dash.activeTab = dash.tabs[Math.max(0, index - 1)].id
+          })))
+        }
+        menu.showAtMouseEvent(ev)
+      })
+    }
+    const add = bar.createEl('button', { cls: 'ins-tab ins-tab-add', attr: { 'aria-label': 'New tab' } })
+    setIcon(add, 'plus')
+    add.addEventListener('click', () => {
+      // A new question: pick what it tracks; comparisons are added on the tab
+      new DimensionPicker(this.app, m.dims, 'What should the new tab track?', (dim) => this.update(() => {
+        const tab = newTab(dim.id, [])
+        dash.tabs.push(tab)
+        dash.activeTab = tab.id
+      })).open()
+    })
+  }
+
   /** Track (what the bars are split by), compare with (the groups), % or counts. */
   private renderToolbar(parent: HTMLElement, m: Model) {
     const bar = parent.createDiv('ins-toolbar')
 
     const trackGroup = bar.createDiv('ins-toolbar-group')
     trackGroup.createSpan({ text: 'Track', cls: 'ins-toolbar-label' })
-    const dropdown = new DropdownComponent(trackGroup)
-    for (const d of m.dims) dropdown.addOption(d.id, d.name)
-    dropdown.setValue(m.tracked)
-    dropdown.onChange((id) => this.update(() => {
-      this.dash.tracked = id
-      // The old tracked dimension is a natural thing to compare with
-      const old = m.tracked
-      if (!m.compare.includes(old)) this.dash.compare = [old, ...m.compare]
-    }))
+    const track = trackGroup.createEl('button', { cls: 'ins-picker-btn' })
+    track.createSpan({ text: m.trackedName })
+    setIcon(track.createSpan(), 'chevron-down')
+    track.addEventListener('click', () => {
+      new DimensionPicker(this.app, m.dims.filter(d => d.id !== m.tracked), 'Track…', (dim) => this.update(() => {
+        // The old tracked dimension is a natural thing to compare with
+        this.tab.compare = [m.tracked, ...m.compare.filter(id => id !== dim.id)]
+        this.tab.tracked = dim.id
+      })).open()
+    })
 
     const compareGroup = bar.createDiv('ins-toolbar-group ins-compare')
     compareGroup.createSpan({ text: 'Compare with', cls: 'ins-toolbar-label' })
-    // The note's own properties, then from linked notes, then dates
-    for (const kind of ['property', 'linked', 'date'] as const) {
-      const dims = m.dims.filter(d => d.id !== m.tracked && dimensionKind(d.id) === kind)
-      if (dims.length === 0) continue
-      const group = compareGroup.createDiv('ins-chip-group')
-      if (kind !== 'property') group.createSpan({ text: kind === 'linked' ? 'Linked:' : 'Dates:', cls: 'ins-chip-group-label' })
-      for (const d of dims) {
-        const on = m.compare.includes(d.id)
-        const chip = group.createEl('button', {
-          text: d.name,
-          cls: 'ins-toggle' + (on ? ' is-active' : '') + (kind === 'date' ? ' is-builtin' : ''),
-          attr: { 'aria-pressed': String(on) },
-        })
-        chip.addEventListener('click', () => this.update(() => {
-          this.dash.compare = on ? m.compare.filter(id => id !== d.id) : [...m.compare, d.id]
-        }))
-      }
+    for (const id of m.compare) {
+      const chip = compareGroup.createSpan('ins-filter-chip ins-compare-chip' + (dimensionKind(id) === 'date' ? ' is-builtin' : ''))
+      chip.createSpan({ text: this.dimName(m.dims, id) })
+      const remove = chip.createEl('button', { cls: 'ins-filter-remove', attr: { 'aria-label': 'Stop comparing' } })
+      setIcon(remove, 'x')
+      remove.addEventListener('click', () => this.update(() => { this.tab.compare = m.compare.filter(x => x !== id) }))
     }
+    const add = compareGroup.createEl('button', { cls: 'ins-link-btn' })
+    setIcon(add.createSpan(), 'plus')
+    add.createSpan({ text: 'Add' })
+    add.addEventListener('click', () => {
+      const options = m.dims.filter(d => d.id !== m.tracked && !m.compare.includes(d.id))
+      new DimensionPicker(this.app, options, 'Compare with…', (dim) => this.update(() => {
+        this.tab.compare = [...m.compare, dim.id]
+      })).open()
+    })
 
     const modeGroup = bar.createDiv('ins-toolbar-group')
     modeGroup.createSpan({ text: 'Bars', cls: 'ins-toolbar-label' })
@@ -374,7 +428,7 @@ export class InsightsView extends ItemView {
   private renderFilters(parent: HTMLElement, m: Model) {
     const bar = parent.createDiv('ins-filters')
     bar.createSpan({ text: 'Filters', cls: 'ins-toolbar-label' })
-    const filters = this.dash.filters ?? []
+    const filters = this.tab.filters ?? []
     if (filters.length === 0) bar.createSpan({ text: 'Click a pie slice or bar to filter', cls: 'ins-filters-hint' })
     for (const f of filters) {
       const chip = bar.createSpan('ins-filter-chip')
@@ -383,7 +437,7 @@ export class InsightsView extends ItemView {
       const remove = chip.createEl('button', { cls: 'ins-filter-remove', attr: { 'aria-label': 'Remove filter' } })
       setIcon(remove, 'x')
       remove.addEventListener('click', () => this.update(() => {
-        this.dash.filters = this.dash.filters.filter(x => x !== f)
+        this.tab.filters = this.tab.filters.filter(x => x !== f)
       }))
     }
 
@@ -399,47 +453,38 @@ export class InsightsView extends ItemView {
         search.addEventListener('click', () => this.searchFiltered(m))
       }
       const clear = bar.createEl('button', { text: 'Clear', cls: 'ins-link-btn' })
-      clear.addEventListener('click', () => this.update(() => { this.dash.filters = [] }))
+      clear.addEventListener('click', () => this.update(() => { this.tab.filters = [] }))
     }
   }
 
-  /** Two steps: pick a property, then one of its values (with entry counts). */
-  private openFilterMenu(ev: MouseEvent, m: Model) {
-    const pos = { x: ev.clientX, y: ev.clientY }
+  /** Two steps: pick a property (searchable), then one of its values (with note counts). */
+  private openFilterMenu(_ev: MouseEvent, m: Model) {
     const inRange = entriesSince(m.all, this.since())
-    const menu = new Menu()
-    for (const d of m.dims) {
-      menu.addItem(item => item.setTitle(d.name).onClick(() => {
-        const values = countValues(applyFilters(inRange, this.dash.filters.filter(f => f.dim !== d.id)), e => valuesOf(e, d.id))
-        const order = orderValues(values, d.id)
-        const valueMenu = new Menu()
-        for (const key of order) {
-          const v = values.find(x => x.key === key)!
-          valueMenu.addItem(i => i.setTitle(`${v.label} (${v.count})`).onClick(() => this.addFilter(d.id, v.key, v.label)))
-        }
-        if (order.length === 0) valueMenu.addItem(i => i.setTitle('No values').setDisabled(true))
-        valueMenu.showAtPosition(pos)
-      }))
-    }
-    menu.showAtPosition(pos)
+    new DimensionPicker(this.app, m.dims, 'Filter by…', (d) => {
+      const values = countValues(applyFilters(inRange, this.tab.filters.filter(f => f.dim !== d.id)), e => valuesOf(e, d.id))
+      const items = orderValues(values, d.id).map(key => values.find(x => x.key === key)!)
+      new ValuePicker(this.app, items, `${d.name}…`, (v) => this.addFilter(d.id, v.key, v.label)).open()
+    }).open()
   }
 
   /** One filter per dimension: a new value replaces the old one. */
   private addFilter(dim: string, value: string, label: string) {
     this.update(() => {
-      this.dash.filters = [...this.dash.filters.filter(f => f.dim !== dim), { dim, value, label } satisfies Filter]
+      this.tab.filters = [...this.tab.filters.filter(f => f.dim !== dim), { dim, value, label } satisfies Filter]
     })
   }
 
   // ─── Cards ──────────────────────────────────────────────────────────────────
 
-  private leftCards(m: Model): { id: string; name: string; draw: (card: HTMLElement) => void }[] {
+  private leftCards(m: Model): { id: string; name: string; half?: boolean; draw: (card: HTMLElement) => void }[] {
     const tracked = m.trackedName.toLowerCase()
     const cards = [
       { id: 'links', name: `What goes with your ${tracked}`, draw: (c: HTMLElement) => this.drawLinks(c, m) },
       { id: 'trend', name: sentence(`${tracked} over time`), draw: (c: HTMLElement) => this.drawTrendCard(c, m) },
       ...m.compare.map(dim => ({
         id: `split:${dim}`,
+        // Date breakdowns are a few columns: half width, so two sit side by side
+        half: dimensionKind(dim) === 'date',
         name: sentence(`${tracked} by ${this.dimName(m.dims, dim).toLowerCase()}`),
         draw: (c: HTMLElement) => this.drawSplit(c, m, dim),
       })),
@@ -447,7 +492,7 @@ export class InsightsView extends ItemView {
     return cards
   }
 
-  private rightCards(m: Model): { id: string; name: string; draw: (card: HTMLElement) => void }[] {
+  private rightCards(m: Model): { id: string; name: string; half?: boolean; draw: (card: HTMLElement) => void }[] {
     return [m.tracked, ...m.compare.filter(d => dimensionKind(d) !== 'date')].map(dim => ({
       id: `pie:${dim}`,
       name: this.dimName(m.dims, dim),
@@ -459,13 +504,13 @@ export class InsightsView extends ItemView {
     parent: HTMLElement,
     column: Column,
     layout: Record<Column, string[]>,
-    cards: { id: string; name: string; draw: (card: HTMLElement) => void }[],
+    cards: { id: string; name: string; half?: boolean; draw: (card: HTMLElement) => void }[],
   ) {
     const ids = layout[column]
     const visible = ids.filter(id => !this.isHidden(id))
     for (const id of visible) {
       const card = cards.find(c => c.id === id)!
-      const el = this.card(parent, card.name, id)
+      const el = this.card(parent, card.name, id, card.half ? 'ins-card-half' : undefined)
       if (this.insCustomizing) {
         const title = el.querySelector<HTMLElement>('.ins-card-title')
         if (title) {
@@ -475,15 +520,15 @@ export class InsightsView extends ItemView {
           const controls = title.createDiv('ins-card-controls')
           const other: Column = column === 'left' ? 'right' : 'left'
           this.iconButton(controls, 'arrow-up', 'Move up', visible.indexOf(id) === 0,
-            () => this.update(() => { this.dash.cardOrder = moveCard(ids, visible, id, -1, this.dash.cardOrder) }))
+            () => this.update(() => { this.tab.cardOrder = moveCard(ids, visible, id, -1, this.tab.cardOrder) }))
           this.iconButton(controls, 'arrow-down', 'Move down', visible.indexOf(id) === visible.length - 1,
-            () => this.update(() => { this.dash.cardOrder = moveCard(ids, visible, id, 1, this.dash.cardOrder) }))
+            () => this.update(() => { this.tab.cardOrder = moveCard(ids, visible, id, 1, this.tab.cardOrder) }))
           this.iconButton(controls, column === 'left' ? 'arrow-right-to-line' : 'arrow-left-to-line',
             `Move to the ${other} column`, false,
             () => this.update(() => {
-              this.dash.cardColumns = { ...this.dash.cardColumns, [id]: other }
+              this.tab.cardColumns = { ...this.tab.cardColumns, [id]: other }
               // No saved position: it goes to the bottom of the other column
-              this.dash.cardOrder = this.dash.cardOrder.filter(x => x !== id)
+              this.tab.cardOrder = this.tab.cardOrder.filter(x => x !== id)
             }))
           this.hideButton(controls, id)
         }
@@ -506,10 +551,10 @@ export class InsightsView extends ItemView {
           .map(el => (el as HTMLElement).dataset['card'])
           .filter((id): id is string => !!id)
         const { columns, order } = layoutAfterDrop(idsIn(left), idsIn(right),
-          this.dash.cardColumns ?? {}, this.dash.cardOrder ?? [])
+          this.tab.cardColumns ?? {}, this.tab.cardOrder ?? [])
         this.update(() => {
-          this.dash.cardColumns = columns
-          this.dash.cardOrder = order
+          this.tab.cardColumns = columns
+          this.tab.cardOrder = order
         })
       },
     }
@@ -517,7 +562,7 @@ export class InsightsView extends ItemView {
   }
 
   private isHidden(id: string): boolean {
-    return (this.dash.hiddenCards ?? []).includes(id)
+    return (this.tab.hiddenCards ?? []).includes(id)
   }
 
   private card(parent: HTMLElement, title: string | undefined, id: string, cls?: string): HTMLElement {
@@ -536,7 +581,7 @@ export class InsightsView extends ItemView {
 
   private hideButton(parent: HTMLElement, id: string) {
     this.iconButton(parent, 'eye-off', 'Hide', false,
-      () => this.update(() => { this.dash.hiddenCards = [...this.dash.hiddenCards, id] }))
+      () => this.update(() => { this.tab.hiddenCards = [...this.tab.hiddenCards, id] }))
   }
 
   /** In customize mode: the hidden cards and tiles, click to show again. */
@@ -548,7 +593,7 @@ export class InsightsView extends ItemView {
       ['recent', 'Recent notes'],
       ...[...this.leftCards(m), ...this.rightCards(m)].map(c => [c.id, c.name] as [string, string]),
     ])
-    const hidden = (this.dash.hiddenCards ?? []).filter(id => names.has(id))
+    const hidden = (this.tab.hiddenCards ?? []).filter(id => names.has(id))
     if (hidden.length === 0) {
       tray.createSpan({ text: 'Nothing hidden. Use the eye on a card or tile to hide it, and the arrows to move cards.', cls: 'ins-filters-hint' })
       return
@@ -558,7 +603,7 @@ export class InsightsView extends ItemView {
       setIcon(chip.createSpan(), 'eye')
       chip.createSpan({ text: names.get(id) ?? id })
       chip.addEventListener('click', () => this.update(() => {
-        this.dash.hiddenCards = this.dash.hiddenCards.filter(x => x !== id)
+        this.tab.hiddenCards = this.tab.hiddenCards.filter(x => x !== id)
       }))
     }
   }
@@ -820,7 +865,7 @@ export class InsightsView extends ItemView {
     const quote = (s: string) => /[\s"]/.test(s) ? `"${s.replace(/"/g, '\\"')}"` : s
     const src = this.dash.source
     const parts = src.kind === 'tag' ? [`tag:#${src.value}`] : src.kind === 'folder' ? [`path:${quote(src.value.replace(/\/+$/, '') + '/')}`] : []
-    for (const f of this.dash.filters) {
+    for (const f of this.tab.filters) {
       if (dimensionKind(f.dim) !== 'property') continue
       parts.push(`[${quote(this.dimName(m.dims, f.dim))}:${quote(f.label)}]`)
     }
@@ -828,5 +873,67 @@ export class InsightsView extends ItemView {
       internalPlugins?: { getPluginById(id: string): { instance?: { openGlobalSearch?(q: string): void } } | null }
     }).internalPlugins?.getPluginById('global-search')?.instance
     search?.openGlobalSearch?.(parts.join(' '))
+  }
+}
+
+type PickerDim = { id: string; name: string; notes: number }
+
+/** Searchable list of dimensions (a vault can have hundreds), with their kind and how many notes have them. */
+class DimensionPicker extends FuzzySuggestModal<PickerDim> {
+  constructor(app: App, private readonly dims: PickerDim[], placeholder: string, private readonly onPick: (dim: PickerDim) => void) {
+    super(app)
+    this.setPlaceholder(placeholder)
+    this.limit = 300
+  }
+
+  getItems(): PickerDim[] {
+    // The note's own properties, then from linked notes, then dates; most used first
+    const rank = { property: 0, linked: 1, date: 2 }
+    return [...this.dims].sort((a, b) => rank[dimensionKind(a.id)] - rank[dimensionKind(b.id)] || b.notes - a.notes)
+  }
+
+  getItemText(dim: PickerDim): string {
+    return dim.name
+  }
+
+  renderSuggestion(match: FuzzyMatch<PickerDim>, el: HTMLElement) {
+    super.renderSuggestion(match, el)
+    el.addClass('ins-picker-item')
+    const kind = dimensionKind(match.item.id)
+    el.createSpan({
+      text: kind === 'date' ? 'date' : `${kind === 'linked' ? 'linked · ' : ''}${match.item.notes === 1 ? '1 note' : `${match.item.notes} notes`}`,
+      cls: 'ins-picker-meta',
+    })
+  }
+
+  onChooseItem(dim: PickerDim) {
+    this.onPick(dim)
+  }
+}
+
+/** Searchable list of a dimension's values, with how many notes have each. */
+class ValuePicker extends FuzzySuggestModal<Tally> {
+  constructor(app: App, private readonly values: Tally[], placeholder: string, private readonly onPick: (value: Tally) => void) {
+    super(app)
+    this.setPlaceholder(placeholder)
+    this.limit = 300
+  }
+
+  getItems(): Tally[] {
+    return this.values
+  }
+
+  getItemText(v: Tally): string {
+    return v.label
+  }
+
+  renderSuggestion(match: FuzzyMatch<Tally>, el: HTMLElement) {
+    super.renderSuggestion(match, el)
+    el.addClass('ins-picker-item')
+    el.createSpan({ text: String(match.item.count), cls: 'ins-picker-meta' })
+  }
+
+  onChooseItem(v: Tally) {
+    this.onPick(v)
   }
 }
