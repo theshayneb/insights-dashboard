@@ -299,23 +299,22 @@ export class InsightsView extends ItemView {
   private renderHeader(parent: HTMLElement, m: Model) {
     const root = parent.createDiv('ins-header')
     const start = root.createDiv('ins-header-count')
+    start.createSpan({ text: 'Dashboard', cls: 'ins-toolbar-label' })
     const picker = new DropdownComponent(start)
     for (const d of this.settings.dashboards) picker.addOption(d.id, sourceLabel(d.source))
-    picker.addOption('__new__', 'New dashboard…')
     picker.setValue(this.dash.id)
-    picker.onChange((id) => {
-      if (id !== '__new__') {
-        this.update(() => { this.settings.activeDashboard = id })
-        return
-      }
-      picker.setValue(this.dash.id)
+    picker.onChange((id) => this.update(() => { this.settings.activeDashboard = id }))
+    const add = start.createEl('button', { cls: 'ins-link-btn', attr: { 'aria-label': 'A dashboard for the notes with another tag, in a folder, or all notes' } })
+    setIcon(add.createSpan(), 'plus')
+    add.createSpan({ text: 'New dashboard' })
+    add.addEventListener('click', () => {
       new NewDashboardModal(this.app, (source) => this.update(() => {
         const dash = newDashboard(source)
         this.settings.dashboards.push(dash)
         this.settings.activeDashboard = dash.id
       })).open()
     })
-    start.createSpan({ text: entriesText(m.entries.length) })
+    start.createSpan({ text: `· ${entriesText(m.entries.length)}` })
     const tabs = root.createDiv('ins-header-tabs')
     for (const range of RANGES) {
       const active = range.id === this.dash.range

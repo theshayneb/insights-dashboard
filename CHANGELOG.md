@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.9] - 2026-10-11
+
+### Changed
+- A **+ New dashboard** button next to the dashboard picker (it used to be hidden at the bottom of the picker). The new-dashboard window explains the outfit example and says when the tag or folder is missing instead of doing nothing.
+
 ## [0.0.8] - 2026-10-11
 
 ### Changed

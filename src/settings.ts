@@ -1,4 +1,4 @@
-import { App, Modal, PluginSettingTab, Setting, getAllTags } from 'obsidian'
+import { App, Modal, Notice, PluginSettingTab, Setting, getAllTags } from 'obsidian'
 import type InsightsDashboardPlugin from './main'
 import { type Column, type Filter, type Source, sourceLabel } from './journal'
 
@@ -189,7 +189,7 @@ export class NewDashboardModal extends Modal {
 
     new Setting(contentEl)
       .setName('Notes')
-      .setDesc('Which notes the dashboard reads.')
+      .setDesc('Which notes the dashboard reads. For outfits: with the tag "outfit", then track their rating and compare with their wardrobe items.')
       .addDropdown(dd => dd
         .addOption('tag', 'With a tag')
         .addOption('folder', 'In a folder')
@@ -209,7 +209,10 @@ export class NewDashboardModal extends Modal {
     fillSuggestions()
 
     new Setting(contentEl).addButton(btn => btn.setButtonText('Create').setCta().onClick(() => {
-      if (kind !== 'all' && !value) return
+      if (kind !== 'all' && !value) {
+        new Notice(kind === 'tag' ? 'Type the tag first.' : 'Type the folder first.')
+        return
+      }
       this.close()
       this.onDone({ kind, value: kind === 'all' ? '' : value })
     }))
