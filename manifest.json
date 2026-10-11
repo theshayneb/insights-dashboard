@@ -1,7 +1,7 @@
 {
   "id": "insights-dashboard",
   "name": "Insights Dashboard",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "minAppVersion": "1.6.6",
   "description": "Dashboards of how the properties of your notes, and the notes they link to, relate: moods, songs, teas, outfits, anything with properties.",
   "author": "theshayneb",

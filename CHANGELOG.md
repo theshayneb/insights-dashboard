@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.8] - 2026-10-11
+
+### Changed
+- The Track, Compare with and Add filter picker is organized into collapsible sections, each sorted alphabetically: **Properties** (the notes' own), **Linked notes by tag**, one **Through …** section per link property (e.g. "Through SOTD": Album, Artist, …), and **Dates**. Each section shows how many it holds; open sections are remembered until Obsidian restarts. Typing in the search box opens every section with a match, and Enter picks the first one.
+
 ## [0.0.7] - 2026-10-10
 
 ### Added

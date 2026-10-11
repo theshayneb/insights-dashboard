@@ -580,3 +580,41 @@ export function limitValues(order: string[], tally: Tally[], chosen: Record<stri
   const rest = order.filter(k => !(k in chosen)).sort((a, b) => (count.get(b) ?? 0) - (count.get(a) ?? 0))
   return new Set([...keep, ...rest.slice(0, max - keep.length)])
 }
+
+// ─── Picker sections ──────────────────────────────────────────────────────────
+
+export interface DimensionSection<T extends { id: string; name: string }> {
+  key: string
+  title: string
+  items: T[]   // alphabetical
+}
+
+/**
+ * Dimensions in sections for the picker: the notes' own properties, linked
+ * notes by tag, one section per link property ("Through SOTD": SOTD → Artist, …),
+ * then dates. Sections and their items are alphabetical (dates keep their order).
+ */
+export function groupDimensions<T extends { id: string; name: string }>(dims: T[]): DimensionSection<T>[] {
+  const byName = (a: T, b: T) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+  const own = dims.filter(d => dimensionKind(d.id) === 'property').sort(byName)
+  const tags = dims.filter(d => d.id.startsWith('@linked:')).sort(byName)
+  const through = new Map<string, T[]>()
+  for (const d of dims.filter(d => d.id.includes('>'))) {
+    const parent = d.id.split('>')[0]
+    const list = through.get(parent) ?? []
+    list.push(d)
+    through.set(parent, list)
+  }
+  const parentName = (id: string) => dims.find(d => d.id === id)?.name
+    ?? through.get(id)?.[0]?.name.split(' → ')[0] ?? id
+  const dates = BUILTIN_DIMENSIONS.flatMap(b => dims.filter(d => d.id === b.id))
+
+  const sections: DimensionSection<T>[] = []
+  if (own.length) sections.push({ key: 'own', title: 'Properties', items: own })
+  if (tags.length) sections.push({ key: 'tags', title: 'Linked notes by tag', items: tags })
+  for (const [parent, items] of [...through].sort((a, b) => parentName(a[0]).localeCompare(parentName(b[0]), undefined, { sensitivity: 'base' }))) {
+    sections.push({ key: `through:${parent}`, title: `Through ${parentName(parent)}`, items: items.sort(byName) })
+  }
+  if (dates.length) sections.push({ key: 'dates', title: 'Dates', items: dates })
+  return sections
+}

@@ -28,6 +28,6 @@ npm run build
 - Dimension ids: a property is its lower-case name (`mood`); a linked note's property is `sotd>artist`; linked notes by tag are `@linked:tea`; dates are `@weekday`, `@season`, `@year`, `@month`.
 - Settings hold several dashboards (`dashboards`, `activeDashboard`), each with tabs (`tabs`, `activeTab`) holding a question's tracked/compare/filters/card layout; `migrateSettings` upgrades older data.json shapes, so keep it working for them.
 - `src/pennywallet.ts` reads PennyWallet (Mod) month files (`<folder>/YYYY-MM.md`, a Markdown table per month; see PennyWallet's `parseRow` for the column variants) for the `insights-purchases` block in `src/view/PurchasesBlock.ts`.
-- The owner's vault has hundreds of properties (many from linked notes): never list them all in the UI; use the searchable pickers.
+- The owner's vault has hundreds of properties (many from linked notes): never list them all in the UI; use the picker (`DimensionPicker`: search plus collapsible alphabetical sections from `groupDimensions`).
 - CSS classes use the `ins-` prefix. UI text is English and sentence case (the Obsidian lint rules require it).
 - Don't give subclasses of Obsidian classes members that may clash with undocumented internals; use an `ins` prefix.

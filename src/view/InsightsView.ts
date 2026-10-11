@@ -1,4 +1,4 @@
-import { App, CachedMetadata, DropdownComponent, FuzzyMatch, FuzzySuggestModal, ItemView, Menu, TFile, WorkspaceLeaf, debounce, getAllTags, getLinkpath, setIcon } from 'obsidian'
+import { App, CachedMetadata, DropdownComponent, FuzzyMatch, FuzzySuggestModal, ItemView, Menu, Modal, TFile, WorkspaceLeaf, debounce, getAllTags, getLinkpath, setIcon } from 'obsidian'
 import { Chart } from 'chart.js'
 import Sortable from 'sortablejs'
 import type InsightsDashboardPlugin from '../main'
@@ -7,7 +7,7 @@ import { OTHER_COLOR, drawPie, formatMonth, getMonthRangeEndingAt, getThemeColor
 import { Series, drawShares, drawTrend, entriesText } from './journalCharts'
 import {
   BUILTIN_DIMENSIONS, Breakdown, Filter, JournalEntry, JournalValue, LinkedNote, Link, Source, Tally,
-  dimensionKind, limitValues, matchesSource, sourceLabel,
+  dimensionKind, groupDimensions, limitValues, matchesSource, sourceLabel,
   Column, applyFilters, breakdownByDimension, colorValues, breakdownByGroup, builtinDimension, buildEntry, countValues,
   discoverProperties, entriesSince, findLinks, layoutAfterDrop, layoutColumns, moveCard, orderValues,
   overallBreakdown, streaks, valuesOf, weekdayName, yearMonthOf,
@@ -878,36 +878,73 @@ export class InsightsView extends ItemView {
 
 type PickerDim = { id: string; name: string; notes: number }
 
-/** Searchable list of dimensions (a vault can have hundreds), with their kind and how many notes have them. */
-class DimensionPicker extends FuzzySuggestModal<PickerDim> {
-  constructor(app: App, private readonly dims: PickerDim[], placeholder: string, private readonly onPick: (dim: PickerDim) => void) {
+/** Sections opened in the picker, remembered while Obsidian runs. */
+const openPickerSections = new Set<string>(['own'])
+
+/**
+ * Picks a dimension (a vault can have hundreds): a search box over collapsible,
+ * alphabetical sections (properties, linked notes by tag, one per link
+ * property, dates), each item with how many notes have it.
+ */
+class DimensionPicker extends Modal {
+  constructor(app: App, private readonly dims: PickerDim[], private readonly title: string, private readonly onPick: (dim: PickerDim) => void) {
     super(app)
-    this.setPlaceholder(placeholder)
-    this.limit = 300
   }
 
-  getItems(): PickerDim[] {
-    // The note's own properties, then from linked notes, then dates; most used first
-    const rank = { property: 0, linked: 1, date: 2 }
-    return [...this.dims].sort((a, b) => rank[dimensionKind(a.id)] - rank[dimensionKind(b.id)] || b.notes - a.notes)
-  }
+  onOpen() {
+    this.setTitle(this.title)
+    this.modalEl.addClass('ins-picker-modal')
+    const search = this.contentEl.createEl('input', { type: 'search', cls: 'ins-picker-search', attr: { placeholder: 'Search' } })
+    const list = this.contentEl.createDiv('ins-picker-sections')
+    const sections = groupDimensions(this.dims)
 
-  getItemText(dim: PickerDim): string {
-    return dim.name
-  }
+    const draw = () => {
+      list.empty()
+      const query = search.value.trim().toLowerCase()
+      let first: PickerDim | undefined
+      for (const section of sections) {
+        const items = query ? section.items.filter(d => d.name.toLowerCase().includes(query)) : section.items
+        if (items.length === 0) continue
+        first ??= items[0]
+        const open = query !== '' || openPickerSections.has(section.key)
+        const sectionEl = list.createDiv('ins-picker-section' + (open ? ' is-open' : ''))
+        const head = sectionEl.createEl('button', { cls: 'ins-picker-section-head', attr: { 'aria-expanded': String(open) } })
+        setIcon(head.createSpan('ins-picker-chevron'), open ? 'chevron-down' : 'chevron-right')
+        head.createSpan({ text: section.title, cls: 'ins-picker-section-title' })
+        head.createSpan({ text: String(items.length), cls: 'ins-picker-meta' })
+        head.addEventListener('click', () => {
+          if (openPickerSections.has(section.key)) openPickerSections.delete(section.key)
+          else openPickerSections.add(section.key)
+          draw()
+        })
+        if (!open) continue
+        for (const d of items) {
+          const row = sectionEl.createEl('button', { cls: 'ins-picker-item' })
+          // In "Through SOTD", "SOTD → Artist" reads as just "Artist"
+          row.createSpan({ text: section.key.startsWith('through:') ? d.name.split(' → ').slice(1).join(' → ') : d.name })
+          row.createSpan({
+            text: dimensionKind(d.id) === 'date' ? '' : d.notes === 1 ? '1 note' : `${d.notes} notes`,
+            cls: 'ins-picker-meta',
+          })
+          row.addEventListener('click', () => { this.close(); this.onPick(d) })
+        }
+      }
+      if (!first) list.createDiv({ text: 'Nothing matches', cls: 'ins-filters-hint ins-picker-empty' })
+      this.insFirst = first
+    }
 
-  renderSuggestion(match: FuzzyMatch<PickerDim>, el: HTMLElement) {
-    super.renderSuggestion(match, el)
-    el.addClass('ins-picker-item')
-    const kind = dimensionKind(match.item.id)
-    el.createSpan({
-      text: kind === 'date' ? 'date' : `${kind === 'linked' ? 'linked · ' : ''}${match.item.notes === 1 ? '1 note' : `${match.item.notes} notes`}`,
-      cls: 'ins-picker-meta',
+    search.addEventListener('input', draw)
+    search.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && this.insFirst) { e.preventDefault(); const d = this.insFirst; this.close(); this.onPick(d) }
     })
+    draw()
+    window.setTimeout(() => search.focus(), 0)
   }
 
-  onChooseItem(dim: PickerDim) {
-    this.onPick(dim)
+  private insFirst: PickerDim | undefined
+
+  onClose() {
+    this.contentEl.empty()
   }
 }
 

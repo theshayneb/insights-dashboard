@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  JournalEntry, LinkedNote, limitValues, applyFilters, colorValues, dimensionKind, matchesSource, sourceLabel, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
+  JournalEntry, LinkedNote, groupDimensions, limitValues, applyFilters, colorValues, dimensionKind, matchesSource, sourceLabel, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
   discoverProperties, entriesSince, entryDate, findLinks, getProperty, layoutAfterDrop, layoutColumns, moveCard, normalizeValues,
   orderCards, orderValues, overallBreakdown, seasonOf, streaks, valuesOf,
 } from '../src/journal'
@@ -247,5 +247,23 @@ describe('colorValues with emoji', () => {
       { great: '#00ff00', good: '#ffff00', okay: '#ff9900', bad: '#ff8888' }, ['#123456'])
     expect(order).toEqual(['😄 great', '😊 good', '😐 okay', '☹️ bad'])
     expect(colors.get('😐 okay')).toBe('#ff9900')
+  })
+})
+
+describe('groupDimensions', () => {
+  it('sorts dimensions into alphabetical sections', () => {
+    const dims = [
+      { id: 'weather', name: 'Weather' }, { id: 'motd', name: 'MOTD' }, { id: 'activities', name: 'activities' },
+      { id: '@linked:tea', name: 'Linked #tea' }, { id: '@linked:book', name: 'Linked #book' },
+      { id: 'sotd>artist', name: 'SOTD → Artist' }, { id: 'motd>colors', name: 'MOTD → Colors' }, { id: 'motd>brand', name: 'MOTD → Brand' },
+      { id: '@season', name: 'Season' }, { id: '@weekday', name: 'Day of week' },
+    ]
+    expect(groupDimensions(dims).map(s => [s.title, s.items.map(i => i.name)])).toEqual([
+      ['Properties', ['activities', 'MOTD', 'Weather']],
+      ['Linked notes by tag', ['Linked #book', 'Linked #tea']],
+      ['Through MOTD', ['MOTD → Brand', 'MOTD → Colors']],
+      ['Through SOTD', ['SOTD → Artist']],
+      ['Dates', ['Day of week', 'Season']],
+    ])
   })
 })
