@@ -51,18 +51,19 @@ export function formatMonth(yearMonth: string, withYear = false): string {
 
 // ─── Pie chart ────────────────────────────────────────────────────────────────
 
-/** Slices under 1% are grouped into "__other__". */
+/**
+ * The values to draw, without empty ones. Every value keeps its own slice and
+ * legend row, however small (pies are only used for a few values), so a rare
+ * rating can still be seen and clicked.
+ */
 export function filterPieData(data: Map<string, number>): Map<string, number> {
-  const total = [...data.values()].reduce((a, b) => a + b, 0)
-  if (total === 0) return new Map()
-  const filtered = new Map<string, number>()
-  let otherTotal = 0
-  for (const [key, value] of data) {
-    if ((value / total) * 100 >= 1) filtered.set(key, value)
-    else otherTotal += value
-  }
-  if (otherTotal > 0) filtered.set('__other__', otherTotal)
-  return filtered
+  return new Map([...data].filter(([, value]) => value > 0))
+}
+
+/** "12%", or "<1%" for a sliver that isn't zero. */
+export function percentText(value: number, total: number): string {
+  const pct = (value / total) * 100
+  return pct > 0 && pct < 1 ? '<1%' : `${Math.round(pct)}%`
 }
 
 export function drawPie(
@@ -116,7 +117,7 @@ export function drawPie(
             title: (items) => segments[items[0].dataIndex].label,
             label: (ctx) => {
               const seg = segments[ctx.dataIndex]
-              return `${seg.value} (${Math.round((seg.value / total) * 100)}%)`
+              return `${seg.value} (${percentText(seg.value, total)})`
             },
           },
         },
@@ -142,7 +143,7 @@ export function drawPie(
     item.createSpan({ cls: 'ins-legend-dot' }).setCssProps({ 'background-color': segColors[i] })
     item.createSpan({ text: seg.label, cls: 'ins-legend-name' })
     item.createSpan({ text: String(seg.value), cls: 'ins-legend-amt' })
-    item.createSpan({ text: `${Math.round((seg.value / total) * 100)}%`, cls: 'ins-legend-pct' })
+    item.createSpan({ text: percentText(seg.value, total), cls: 'ins-legend-pct' })
   })
 
   return chart

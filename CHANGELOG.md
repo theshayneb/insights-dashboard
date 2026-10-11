@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.11] - 2026-10-11
+
+### Added
+- A minimum per card: the funnel button on a pie, list, breakdown or "What goes with…" card shows only values (or groups) in at least that many notes, e.g. songs linked 3 times or more. The card shows a "≥ 3" badge (click to change, empty to remove) and says how many were left out. Embeds take it as `min: 3`, and "Copy as embed" includes it.
+
+### Fixed
+- Pies show every value, however small: values under 1% were lumped into "Other", which hid ratings like 🩷. Slivers read "<1%".
+- Values that are only emoji (🩷, ⭐⭐⭐) no longer share colors or match each other's filters.
+
 ## [0.0.10] - 2026-10-11
 
 ### Added

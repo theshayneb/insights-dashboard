@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  JournalEntry, LinkedNote, groupDimensions, limitValues, applyFilters, colorValues, dimensionKind, matchesSource, sourceLabel, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
+  JournalEntry, LinkedNote, colorKey, groupDimensions, limitValues, applyFilters, colorValues, dimensionKind, matchesSource, sourceLabel, breakdownByDimension, breakdownByGroup, buildEntry, countValues,
   discoverProperties, entriesSince, entryDate, findLinks, getProperty, layoutAfterDrop, layoutColumns, moveCard, normalizeValues,
   orderCards, orderValues, overallBreakdown, seasonOf, streaks, valuesOf,
 } from '../src/journal'
@@ -270,5 +270,16 @@ describe('groupDimensions', () => {
       ['Through SOTD', ['SOTD → #song', 'SOTD → Artist']],
       ['Dates', ['Day of week', 'Season']],
     ])
+  })
+})
+
+describe('emoji-only values', () => {
+  it('keep their own color and never match other emoji', () => {
+    expect(colorKey('😄 great')).toBe('great')
+    expect(colorKey('🩷')).toBe('🩷')
+    expect(colorKey('⭐⭐⭐')).not.toBe(colorKey('🩷'))
+    const { colors } = colorValues(['⭐⭐⭐', '🩷', '⭐⭐'], { '🩷': '#ff66aa' }, ['#111111', '#222222'])
+    expect(colors.get('🩷')).toBe('#ff66aa')
+    expect(colors.get('⭐⭐⭐')).toBe('#111111')
   })
 })

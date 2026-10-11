@@ -23,6 +23,7 @@ Each dashboard has **tabs**, one per question (e.g. "Mood", "Teas"): **+** adds 
 - **Compare with**: what it's compared with; **+ Add** searches the notes' own properties, **linked** ones, and dates (Day of week, Season, Year, Month of year).
 - **Bars**: % of each group, or note counts.
 - **Filters**: click a pie slice, a bar or a list row to narrow everything to it; stack several; "Search these notes" opens the matching notes.
+- **Minimum**: the funnel on a card shows only values in at least N notes (e.g. songs linked 3+ times).
 - **Customize**: hide cards and tiles, drag cards around (into either column), and pick a color for each value (colors match by words, so "great" also colors "😄 great").
 
 ### Linked notes
@@ -52,6 +53,7 @@ of: Related → #song
 | `filter` | `Property = value`, one per line |
 | `range` | `3 months`, `6 months`, `12 months` or `all` |
 | `bars` | `count` for counts instead of % |
+| `min` | only values in at least this many notes, e.g. `3` |
 | `title` | your own title |
 
 Properties are written as on the dashboard: `Weather`, `SOTD → Artist`, `Related → #song` (only the Related links to notes tagged #song), `Linked #tea`, `Day of week`.

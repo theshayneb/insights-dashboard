@@ -371,14 +371,14 @@ export class InsightsView extends ItemView {
   private leftCards(m: Model): { id: string; name: string; half?: boolean; draw: (card: HTMLElement) => void }[] {
     const tracked = m.trackedName.toLowerCase()
     const cards = [
-      { id: 'links', name: `What goes with your ${tracked}`, draw: (c: HTMLElement) => this.drawer.drawLinks(c, m) },
+      { id: 'links', name: `What goes with your ${tracked}`, draw: (c: HTMLElement) => this.drawer.drawLinks(c, m, this.cardMin('links')) },
       { id: 'trend', name: sentence(`${tracked} over time`), draw: (c: HTMLElement) => this.drawer.drawTrendCard(c, m) },
       ...m.compare.map(dim => ({
         id: `split:${dim}`,
         // Date breakdowns are a few columns: half width, so two sit side by side
         half: dimensionKind(dim) === 'date',
         name: sentence(`${tracked} by ${this.dimName(m.dims, dim).toLowerCase()}`),
-        draw: (c: HTMLElement) => this.drawer.drawSplit(c, m, dim),
+        draw: (c: HTMLElement) => this.drawer.drawSplit(c, m, dim, this.cardMin(`split:${dim}`)),
       })),
     ]
     return cards
@@ -388,7 +388,7 @@ export class InsightsView extends ItemView {
     return [m.tracked, ...m.compare.filter(d => dimensionKind(d) !== 'date')].map(dim => ({
       id: `pie:${dim}`,
       name: this.dimName(m.dims, dim),
-      draw: (c: HTMLElement) => this.drawer.drawPieCard(c, m, dim),
+      draw: (c: HTMLElement) => this.drawer.drawPieCard(c, m, dim, this.cardMin(`pie:${dim}`)),
     }))
   }
 
@@ -405,10 +405,19 @@ export class InsightsView extends ItemView {
       const card = cards.find(c => c.id === id)!
       const el = this.card(parent, card.name, id, card.half ? 'ins-card-half' : undefined)
       const embed = this.embedFor(id, m)
-      if (embed && !this.insCustomizing) {
-        const title = el.querySelector<HTMLElement>('.ins-card-title')
+      const title = el.querySelector<HTMLElement>('.ins-card-title')
+      // Minimum notes per value: a badge when set, and a button to set it
+      const canMin = id === 'links' || id.startsWith('split:') || id.startsWith('pie:')
+      const min = this.cardMin(id)
+      if (title && canMin && min > 1) {
+        const badge = title.createEl('button', { text: `≥ ${min}`, cls: 'ins-min-badge', attr: { 'aria-label': `Only values in at least ${min} notes; click to change` } })
+        badge.addEventListener('click', () => this.askCardMin(id, card.name))
+      }
+      if (title && embed && !this.insCustomizing) {
+        const controls = title.createDiv('ins-card-controls ins-embed-btn')
+        if (canMin) this.iconButton(controls, 'filter', 'Only show values in at least … notes', false, () => this.askCardMin(id, card.name))
         if (title) {
-          this.iconButton(title.createDiv('ins-card-controls ins-embed-btn'), 'code-2', 'Copy as embed, to show this card in a note', false, () => {
+          this.iconButton(controls, 'code-2', 'Copy as embed, to show this card in a note', false, () => {
             void navigator.clipboard.writeText('```insights\n' + embed + '\n```\n')
               .then(() => new Notice('Copied. Paste it into any note to show this card there.'))
           })
@@ -440,6 +449,24 @@ export class InsightsView extends ItemView {
     }
   }
 
+  private cardMin(id: string): number {
+    return this.tab.cardMin?.[id] ?? 1
+  }
+
+  /** Asks for a card's minimum notes per value; empty or 1 removes it. */
+  private askCardMin(id: string, cardName: string) {
+    const current = this.cardMin(id)
+    new TextPromptModal(this.app, `${cardName}: only values in at least … notes`, current > 1 ? String(current) : '', (value) => {
+      const n = Math.floor(Number(value))
+      this.update(() => {
+        const next = { ...(this.tab.cardMin ?? {}) }
+        if (Number.isFinite(n) && n > 1) next[id] = n
+        else delete next[id]
+        this.tab.cardMin = next
+      })
+    }).open()
+  }
+
   /** The `insights` block text that shows this card in a note (null for cards that can't be embedded). */
   private embedFor(id: string, m: Model): string | null {
     const name = (dim: string) => this.dimName(m.dims, dim)
@@ -451,6 +478,7 @@ export class InsightsView extends ItemView {
       filters: this.tab.filters.map(f => ({ dim: name(f.dim), value: f.label })),
       range: this.dash.range,
       bars: this.dash.valueMode ?? 'percent',
+      min: this.cardMin(id),
       title: '',
     }
     if (id === 'links') return writeEmbed({ ...base, show: 'links', compare: m.compare.map(name) })

@@ -15,6 +15,7 @@ export interface Tab {
   hiddenCards: string[]
   cardOrder: string[]
   cardColumns: Record<string, Column>  // cards moved to the other column
+  cardMin: Record<string, number>      // card id → only values/groups with at least this many notes
 }
 
 /** One dashboard: which notes it reads, its tabs, and choices shared by its tabs. */
@@ -28,7 +29,7 @@ export interface Dashboard {
   valueColors: Record<string, Record<string, string>>  // dimension id → value key → color; chosen values come first
 }
 
-const TAB_FIELDS = ['tracked', 'compare', 'filters', 'hiddenCards', 'cardOrder', 'cardColumns'] as const
+const TAB_FIELDS = ['tracked', 'compare', 'filters', 'hiddenCards', 'cardOrder', 'cardColumns', 'cardMin'] as const
 
 export function newTab(tracked = '', compare: string[] | null = null): Tab {
   return {
@@ -41,6 +42,7 @@ export function newTab(tracked = '', compare: string[] | null = null): Tab {
     hiddenCards: ['tile:current-streak', 'tile:longest-streak'],
     cardOrder: [],
     cardColumns: {},
+    cardMin: {},
   }
 }
 
@@ -61,6 +63,7 @@ const JOURNAL_TAB: Tab = {
   hiddenCards: [],
   cardOrder: [],
   cardColumns: {},
+  cardMin: {},
 }
 
 const JOURNAL_DASHBOARD: Dashboard = {
@@ -269,6 +272,7 @@ export class InsightsSettingTab extends PluginSettingTab {
             tab.hiddenCards = []
             tab.cardOrder = []
             tab.cardColumns = {}
+            tab.cardMin = {}
             tab.filters = []
           }
           void this.plugin.saveSettings()

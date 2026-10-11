@@ -10,6 +10,7 @@
 //   filter: Weather = Rainy      (one per line)
 //   range: 12 months             (3 months, 6 months, 12 months or all)
 //   bars: count                  (% or count)
+//   min: 3                       (count, breakdown, links: only values in at least 3 notes)
 //   title: My songs
 
 import type { Source } from './journal'
@@ -26,6 +27,7 @@ export interface EmbedSpec {
   filters: { dim: string; value: string }[]
   range: EmbedRange
   bars: 'percent' | 'count'
+  min: number           // 1 = no minimum
   title: string
   errors: string[]
 }
@@ -49,7 +51,7 @@ export function notesText(source: Source): string {
 export function parseEmbed(text: string): EmbedSpec {
   const spec: EmbedSpec = {
     notes: null, show: 'count', of: '', track: '', compare: [], filters: [],
-    range: 'all', bars: 'percent', title: '', errors: [],
+    range: 'all', bars: 'percent', min: 1, title: '', errors: [],
   }
   for (const line of text.split('\n')) {
     const m = line.match(/^\s*([A-Za-z]+)\s*:\s*(.*?)\s*$/)
@@ -76,7 +78,11 @@ export function parseEmbed(text: string): EmbedSpec {
       if (r in RANGE_TEXT) spec.range = r
       else spec.errors.push('"range" is 3 months, 6 months, 12 months or all')
     } else if (key === 'bars') spec.bars = value.trim() === 'count' ? 'count' : 'percent'
-    else if (key === 'title') spec.title = value
+    else if (key === 'min') {
+      const n = Number(value)
+      if (Number.isInteger(n) && n >= 1) spec.min = n
+      else spec.errors.push('"min" is a whole number, e.g. "min: 3"')
+    } else if (key === 'title') spec.title = value
     else spec.errors.push(`Unknown option "${m[1]}"`)
   }
   if (!spec.notes) spec.errors.push('Say which notes, e.g. "notes: #journal_entry"')
@@ -93,6 +99,7 @@ export function writeEmbed(spec: Omit<EmbedSpec, 'errors'>): string {
   for (const f of spec.filters) lines.push(`filter: ${f.dim} = ${f.value}`)
   if (spec.range !== 'all') lines.push(`range: ${RANGE_TEXT[spec.range]}`)
   if (spec.bars === 'count' && spec.show === 'breakdown') lines.push('bars: count')
+  if (spec.min > 1 && spec.show !== 'trend') lines.push(`min: ${spec.min}`)
   if (spec.title) lines.push(`title: ${spec.title}`)
   return lines.join('\n')
 }

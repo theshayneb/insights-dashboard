@@ -5,12 +5,12 @@ describe('parseEmbed', () => {
   it('reads every option', () => {
     const spec = parseEmbed([
       'notes: #journal_entry', 'show: breakdown', 'of: Related -> #song', 'track: Mood',
-      'filter: Weather = Rainy', 'filter: Day of week = Mon', 'range: 12 months', 'bars: count', 'title: Songs and moods',
+      'filter: Weather = Rainy', 'filter: Day of week = Mon', 'range: 12 months', 'bars: count', 'min: 3', 'title: Songs and moods',
     ].join('\n'))
     expect(spec).toMatchObject({
       notes: { kind: 'tag', value: 'journal_entry' }, show: 'breakdown', of: 'Related -> #song', track: 'Mood',
       filters: [{ dim: 'Weather', value: 'Rainy' }, { dim: 'Day of week', value: 'Mon' }],
-      range: '12m', bars: 'count', title: 'Songs and moods', errors: [],
+      range: '12m', bars: 'count', min: 3, title: 'Songs and moods', errors: [],
     })
   })
 
@@ -31,10 +31,11 @@ describe('parseEmbed', () => {
   it('round-trips what the dashboard writes', () => {
     const text = writeEmbed({
       notes: { kind: 'tag', value: 'journal_entry' }, show: 'links', of: '', track: 'Mood', compare: ['Weather', 'Linked #tea'],
-      filters: [], range: '12m', bars: 'percent', title: '',
+      filters: [], range: '12m', bars: 'percent', min: 4, title: '',
     })
-    expect(text).toBe('notes: #journal_entry\nshow: links\ntrack: Mood\ncompare: Weather, Linked #tea\nrange: 12 months')
-    expect(parseEmbed(text)).toMatchObject({ show: 'links', track: 'Mood', compare: ['Weather', 'Linked #tea'], range: '12m', errors: [] })
+    expect(text).toBe('notes: #journal_entry\nshow: links\ntrack: Mood\ncompare: Weather, Linked #tea\nrange: 12 months\nmin: 4')
+    expect(parseEmbed(text)).toMatchObject({ show: 'links', track: 'Mood', compare: ['Weather', 'Linked #tea'], range: '12m', min: 4, errors: [] })
+    expect(parseEmbed('notes: all\nshow: trend\ntrack: Mood\nmin: lots').errors).toEqual(['"min" is a whole number, e.g. "min: 3"'])
   })
 })
 

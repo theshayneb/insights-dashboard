@@ -571,9 +571,14 @@ export function colorValues(
   return { order: [...chosenKeys, ...rest], colors }
 }
 
-/** A value's words and numbers only, for matching colors: "😄 Great!" → "great". */
+/**
+ * A value's words and numbers only, for matching colors and filters: "😄 Great!"
+ * → "great". A value that is only emoji ("🩷", "⭐⭐⭐") stays as it is, so
+ * different emoji never match each other.
+ */
 export function colorKey(key: string): string {
-  return key.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+  const words = key.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+  return words || key.trim()
 }
 
 /**

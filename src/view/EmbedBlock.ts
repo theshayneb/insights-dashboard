@@ -87,16 +87,17 @@ export class EmbedBlock extends MarkdownRenderChild {
 
     const drawer = new CardDrawer({ valueMode: spec.bars, rangeMonths: rangeMonths(spec.range), valueColors })
     this.insDrawer = drawer
-    if (spec.show === 'count') drawer.drawPieCard(card, m, m.tracked)
+    if (spec.show === 'count') drawer.drawPieCard(card, m, m.tracked, spec.min)
     else if (spec.show === 'breakdown') {
       if (of.startsWith('@')) card.addClass('ins-embed-columns')
-      drawer.drawSplit(card, m, of)
+      drawer.drawSplit(card, m, of, spec.min)
     } else if (spec.show === 'trend') drawer.drawTrendCard(card, m)
-    else drawer.drawLinks(card, m)
+    else drawer.drawLinks(card, m, spec.min)
 
     // Where the numbers come from
     const range = RANGES.find(r => r.id === spec.range)?.label ?? ''
     const filters = spec.filters.map(f => `${f.dim} = ${f.value}`)
+    if (spec.min > 1 && spec.show !== 'trend') filters.push(`at least ${spec.min} notes each`)
     card.createDiv({
       text: [sourceLabel(source), range === 'All' ? 'all time' : `last ${range}`, entriesText(m.entries.length), ...filters].join(' · '),
       cls: 'ins-embed-source',

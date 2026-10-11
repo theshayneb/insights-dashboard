@@ -220,10 +220,12 @@ export class CardDrawer {
     this.opts.onFilter?.(dim, value, label)
   }
 
-  drawLinks(card: HTMLElement, m: Model) {
+  /** `min`: only groups with at least this many notes (never fewer than 3, so a link means something). */
+  drawLinks(card: HTMLElement, m: Model, min = 1) {
     const tracked = m.trackedName.toLowerCase()
+    const minEntries = Math.max(3, min)
     card.createDiv({
-      text: `Groups where one ${tracked} value shows up clearly more often than usual (3 or more notes). ${this.opts.onFilter ? 'Click one to filter by it.' : ''}`,
+      text: `Groups where one ${tracked} value shows up clearly more often than usual (${minEntries} or more notes). ${this.opts.onFilter ? 'Click one to filter by it.' : ''}`,
       cls: 'ins-hint',
     })
     const overall = overallBreakdown(m.entries, m.trackedOf, 'All notes')
@@ -231,7 +233,7 @@ export class CardDrawer {
       id: dim,
       name: dimName(m.dims, dim),
       groups: breakdownByDimension(m.entries, dim, m.trackedOf),
-    })), overall)
+    })), overall, { minEntries })
     if (links.length === 0) {
       card.createEl('p', { text: 'Nothing stands out yet. Compare with more properties, or check back after a few more notes.', cls: 'ins-no-data' })
       return
@@ -285,10 +287,12 @@ export class CardDrawer {
     this.charts.push(drawTrend(card.createDiv('ins-chart-wrap'), months, m.series))
   }
 
-  drawSplit(card: HTMLElement, m: Model, dim: string) {
-    const groups: Breakdown[] = breakdownByDimension(m.entries, dim, m.trackedOf)
+  /** `min`: only groups with at least this many notes. */
+  drawSplit(card: HTMLElement, m: Model, dim: string, min = 1) {
+    const all: Breakdown[] = breakdownByDimension(m.entries, dim, m.trackedOf)
+    const groups = all.filter(g => g.entries >= min)
     if (groups.length === 0 || m.series.length === 0) {
-      card.createEl('p', { text: 'No data in this period', cls: 'ins-no-data' })
+      card.createEl('p', { text: all.length ? `No group has ${min} or more notes` : 'No data in this period', cls: 'ins-no-data' })
       return
     }
     this.legend(card, m.series)
@@ -311,17 +315,28 @@ export class CardDrawer {
     if (groups.length > MAX_GROUPS) {
       card.createDiv({ text: `Showing the ${MAX_GROUPS} biggest of ${groups.length} groups`, cls: 'ins-hint ins-more' })
     }
+    this.hiddenNote(card, all.length - groups.length, min)
   }
 
-  drawPieCard(card: HTMLElement, m: Model, dim: string) {
-    const tally = countValues(m.entries, e => valuesOf(e, dim))
+  /** Says how many values a card's minimum leaves out. */
+  private hiddenNote(card: HTMLElement, hidden: number, min: number) {
+    if (hidden <= 0) return
+    card.createDiv({ text: `${hidden} with fewer than ${min} notes not shown`, cls: 'ins-hint ins-more' })
+  }
+
+  /** `min`: only values that at least this many notes have. */
+  drawPieCard(card: HTMLElement, m: Model, dim: string, min = 1) {
+    const all = countValues(m.entries, e => valuesOf(e, dim))
+    const tally = all.filter(v => v.count >= min)
     if (tally.length === 0) {
-      card.createEl('p', { text: 'No data in this period', cls: 'ins-no-data' })
+      card.createEl('p', { text: all.length ? `No value is in ${min} or more notes` : 'No data in this period', cls: 'ins-no-data' })
       return
     }
-    if (tally.length >= TOP_LIST_AT) {
+    // A list when the property has many values (decided before the minimum, so the card keeps its look)
+    if (all.length >= TOP_LIST_AT) {
       // One color: with dozens of values, per-value colors would mostly repeat
       this.drawTopList(card, tally, dim)
+      this.hiddenNote(card, all.length - tally.length, min)
       return
     }
     const labels = new Map(tally.map(v => [v.key, v.label]))
@@ -333,6 +348,7 @@ export class CardDrawer {
       (key) => { if (key) this.filter(dim, key, labels.get(key) ?? key) },
       (key) => labels.get(key) ?? key,
       (key) => colors.get(key)))
+    this.hiddenNote(card, all.length - tally.length, min)
   }
 
   /** Values ranked by how many notes have them (e.g. most frequent songs); click one to filter by it. */
