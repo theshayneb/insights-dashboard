@@ -202,9 +202,13 @@ describe('links into other notes', () => {
     expect(valuesOf(e, 'sotd')).toEqual([{ key: 'blue song', label: 'Blue Song', link: 'Blue Song' }])
     expect(valuesOf(e, 'sotd>artist').map(v => v.label)).toEqual(['Joni'])
     expect(e.propNames['sotd>artist']).toBe('SOTD → Artist')
+    // Only the SOTD links to notes tagged #song
+    expect(valuesOf(e, 'sotd#song').map(v => v.label)).toEqual(['Blue Song'])
+    expect(e.propNames['sotd#song']).toBe('SOTD → #song')
+    expect(dimensionKind('sotd#song')).toBe('linked')
     expect(valuesOf(e, '@linked:song').map(v => v.label)).toEqual(['Blue Song'])
     // "sotd>tags" is left out when "tags" is ignored
-    expect(discoverProperties([e], ['tags']).map(p => p.id)).toEqual(['sotd', '@linked:song', 'sotd>artist'])
+    expect(discoverProperties([e], ['tags']).map(p => p.id)).toEqual(['sotd', '@linked:song', 'sotd#song', 'sotd>artist'])
   })
 
   it('groups linked notes (from properties or text) by their tags', () => {
@@ -256,13 +260,14 @@ describe('groupDimensions', () => {
       { id: 'weather', name: 'Weather' }, { id: 'motd', name: 'MOTD' }, { id: 'activities', name: 'activities' },
       { id: '@linked:tea', name: 'Linked #tea' }, { id: '@linked:book', name: 'Linked #book' },
       { id: 'sotd>artist', name: 'SOTD → Artist' }, { id: 'motd>colors', name: 'MOTD → Colors' }, { id: 'motd>brand', name: 'MOTD → Brand' },
+      { id: 'sotd#song', name: 'SOTD → #song' },
       { id: '@season', name: 'Season' }, { id: '@weekday', name: 'Day of week' },
     ]
     expect(groupDimensions(dims).map(s => [s.title, s.items.map(i => i.name)])).toEqual([
       ['Properties', ['activities', 'MOTD', 'Weather']],
       ['Linked notes by tag', ['Linked #book', 'Linked #tea']],
       ['Through MOTD', ['MOTD → Brand', 'MOTD → Colors']],
-      ['Through SOTD', ['SOTD → Artist']],
+      ['Through SOTD', ['SOTD → #song', 'SOTD → Artist']],
       ['Dates', ['Day of week', 'Season']],
     ])
   })

@@ -229,7 +229,8 @@ function addValues(props: Record<string, JournalValue[]>, id: string, values: Jo
 /**
  * An entry from a note's frontmatter. With `links`, it also gets:
  * - for a property linking to notes (e.g. SOTD: [[Song]]), the linked notes'
- *   properties, as "sotd>artist" ("SOTD → Artist");
+ *   properties, as "sotd>artist" ("SOTD → Artist"), and its links to notes with
+ *   a tag, as "related#song" ("Related → #song");
  * - for every tag on notes it links to (in properties or text), the linked
  *   notes with that tag, as "@linked:wardrobe_item" ("Linked #wardrobe_item").
  */
@@ -254,6 +255,12 @@ export function buildEntry(
       if (!v.link) continue
       const note = links.resolve(v.link)
       if (!note) continue
+      // Only the links to notes with a tag: "related#song" ("Related → #song")
+      for (const tag of note.tags) {
+        const tagId = `${id}#${tagKey(tag)}`
+        addValues(props, tagId, [v])
+        propNames[tagId] = `${name} → #${tag.replace(/^#/, '')}`
+      }
       for (const [subName, subRaw] of Object.entries(note.frontmatter ?? {})) {
         const sub = subName.toLowerCase()
         if (sub === 'position') continue
@@ -291,7 +298,7 @@ export function buildEntry(
 /** What kind of dimension an id is: a note's own property, something from linked notes, or a date. */
 export function dimensionKind(id: string): 'property' | 'linked' | 'date' {
   if (builtinDimension(id)) return 'date'
-  if (id.startsWith('@linked:') || id.includes('>')) return 'linked'
+  if (id.startsWith('@linked:') || id.includes('>') || id.includes('#')) return 'linked'
   return 'property'
 }
 
@@ -599,8 +606,8 @@ export function groupDimensions<T extends { id: string; name: string }>(dims: T[
   const own = dims.filter(d => dimensionKind(d.id) === 'property').sort(byName)
   const tags = dims.filter(d => d.id.startsWith('@linked:')).sort(byName)
   const through = new Map<string, T[]>()
-  for (const d of dims.filter(d => d.id.includes('>'))) {
-    const parent = d.id.split('>')[0]
+  for (const d of dims.filter(d => !d.id.startsWith('@') && /[>#]/.test(d.id))) {
+    const parent = d.id.split(/[>#]/)[0]
     const list = through.get(parent) ?? []
     list.push(d)
     through.set(parent, list)

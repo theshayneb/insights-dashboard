@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.10] - 2026-10-11
+
+### Added
+- Cards in notes: every dashboard card has a **Copy as embed** button (top right of the card, shown on hover). Paste it into any note and the card is drawn there, live from your notes, e.g.
+  ````
+  ```insights
+  notes: #journal_entry
+  show: count
+  of: Related → #song
+  ```
+  ````
+  Options: `notes` (#tag, folder/ or all), `show` (count, breakdown, trend or links), `of`, `track`, `compare`, `filter: Property = value` (one per line), `range` (3 months, 6 months, 12 months or all), `bars: count`, `title`. Colors chosen on a dashboard for the same notes apply. A block with a mistake says what's wrong.
+- Link properties split by the tag of the notes they link to: "Related → #song" counts only the Related links to notes tagged #song. Find them under "Through Related" in the picker.
+
+### Changed
+- Ranked "most often" lists use one color.
+
 ## [0.0.9] - 2026-10-11
 
 ### Changed

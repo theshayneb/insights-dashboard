@@ -1,33 +1,19 @@
-import { App, CachedMetadata, DropdownComponent, FuzzyMatch, FuzzySuggestModal, ItemView, Menu, Modal, TFile, WorkspaceLeaf, debounce, getAllTags, getLinkpath, setIcon } from 'obsidian'
+import { App, DropdownComponent, Notice, FuzzyMatch, FuzzySuggestModal, ItemView, Menu, Modal, WorkspaceLeaf, debounce, setIcon } from 'obsidian'
 import { Chart } from 'chart.js'
 import Sortable from 'sortablejs'
 import type InsightsDashboardPlugin from '../main'
-import { type Dashboard, type Range, type Tab, NewDashboardModal, TextPromptModal, newDashboard, newTab } from '../settings'
-import { OTHER_COLOR, drawPie, formatMonth, getMonthRangeEndingAt, getThemeColors } from './charts'
-import { Series, drawShares, drawTrend, entriesText } from './journalCharts'
+import { type Dashboard, type Tab, NewDashboardModal, TextPromptModal, newDashboard, newTab } from '../settings'
+import { OTHER_COLOR } from './charts'
+import { entriesText } from './journalCharts'
+import { writeEmbed } from '../embed'
+import { CardDrawer, Dim, Model, RANGES, buildModel, dateText, dimName, rangeMonths, rangeStart, sentence } from './cards'
 import {
-  BUILTIN_DIMENSIONS, Breakdown, Filter, JournalEntry, JournalValue, LinkedNote, Link, Source, Tally,
-  dimensionKind, groupDimensions, limitValues, matchesSource, sourceLabel,
-  Column, applyFilters, breakdownByDimension, colorValues, breakdownByGroup, builtinDimension, buildEntry, countValues,
-  discoverProperties, entriesSince, findLinks, layoutAfterDrop, layoutColumns, moveCard, orderValues,
-  overallBreakdown, streaks, valuesOf, weekdayName, yearMonthOf,
+  Filter, Tally, dimensionKind, groupDimensions, sourceLabel, Column, applyFilters, countValues, entriesSince, layoutAfterDrop, layoutColumns, moveCard, orderValues, streaks, valuesOf, weekdayName,
 } from '../journal'
 
 export const INSIGHTS_VIEW_TYPE = 'insights-dashboard'
 
-const RANGES: { id: Range; label: string; months: number | null }[] = [
-  { id: '3m', label: '3 months', months: 3 },
-  { id: '6m', label: '6 months', months: 6 },
-  { id: '12m', label: '12 months', months: 12 },
-  { id: 'all', label: 'All', months: null },
-]
-
-const MAX_TREND_MONTHS = 36  // longer spans are charted by year
-const MAX_GROUPS = 10      // rows per breakdown chart
 const RECENT_LIMIT = 30
-const MAX_SERIES = 10     // tracked values with their own color; the rest are "Other"
-const TOP_LIST_AT = 9     // a property with this many values gets a ranked list instead of a pie
-const TOP_LIST_ROWS = 15
 
 /** Summary tiles; each can be hidden on its own. */
 const TILES = [
@@ -36,63 +22,6 @@ const TILES = [
   { id: 'tile:longest-streak', name: 'Longest streak' },
   { id: 'tile:most-common', name: 'Most common value' },
 ]
-
-/** First letter upper-case, for titles built from property names. */
-function sentence(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
-function dateText(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-/** The dashboard's notes as entries, newest first, with their links followed (see buildEntry). */
-export function readEntries(app: App, source: Source, dateProperty: string): JournalEntry[] {
-  const linkedCache = new Map<string, LinkedNote | null>()
-  const linkedNote = (file: TFile): LinkedNote => {
-    const cache = app.metadataCache.getFileCache(file)
-    return {
-      name: file.basename,
-      frontmatter: cache?.frontmatter as Record<string, unknown> | undefined,
-      tags: (cache ? getAllTags(cache) ?? [] : []).map(t => t.replace(/^#/, '')),
-    }
-  }
-  const entries: JournalEntry[] = []
-  for (const file of app.vault.getMarkdownFiles()) {
-    const cache: CachedMetadata | null = app.metadataCache.getFileCache(file)
-    if (!cache) continue
-    if (!matchesSource(source, { path: file.path, tags: getAllTags(cache) ?? [] })) continue
-    const resolve = (link: string): LinkedNote | null => {
-      const key = `${file.path}\u0000${link}`
-      if (!linkedCache.has(key)) {
-        const dest = app.metadataCache.getFirstLinkpathDest(getLinkpath(link), file.path)
-        linkedCache.set(key, dest && dest.extension === 'md' ? linkedNote(dest) : null)
-      }
-      return linkedCache.get(key) ?? null
-    }
-    const outgoing = [...(cache.links ?? []), ...(cache.frontmatterLinks ?? [])].map(l => l.link)
-    entries.push(buildEntry(
-      { path: file.path, basename: file.basename, ctime: file.stat.ctime },
-      cache.frontmatter as Record<string, unknown> | undefined,
-      dateProperty,
-      { resolve, outgoing },
-    ))
-  }
-  return entries.sort((a, b) => b.date.getTime() - a.date.getTime() || a.path.localeCompare(b.path))
-}
-
-/** Everything one render needs, worked out once. */
-interface Model {
-  all: JournalEntry[]
-  entries: JournalEntry[]              // in range and matching the filters
-  dims: { id: string; name: string; notes: number }[] // every property found, then the built-ins
-  tracked: string
-  trackedName: string
-  compare: string[]                    // compared dimensions that exist
-  series: Series[]                     // the tracked values, in order, with colors ("Other" last if needed)
-  trackedTally: Tally[]
-  trackedOf: (e: JournalEntry) => JournalValue[]  // tracked values, rare ones counted as "Other"
-}
 
 /**
  * A dashboard of how the properties of a set of notes (and the notes they link to) relate. What it tracks, compares and
@@ -148,6 +77,8 @@ export class InsightsView extends ItemView {
   private clearCharts() {
     this.charts.forEach(c => c.destroy())
     this.charts = []
+    this.insDrawer?.charts.forEach(c => c.destroy())
+    this.insDrawer = null
     this.sortables.forEach(s => s.destroy())
     this.sortables = []
   }
@@ -158,80 +89,42 @@ export class InsightsView extends ItemView {
     void this.plugin.saveSettings()
   }
 
-  private rangeMonths(): number | null {
-    return RANGES.find(r => r.id === this.dash.range)?.months ?? null
-  }
-
   private since(): Date | null {
-    const months = this.rangeMonths()
-    if (months === null) return null
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth() - (months - 1), 1)
+    return rangeStart(this.dash.range)
   }
 
   private buildModel(): Model {
     const s = this.settings
-    const dash = this.dash
-    const tab = this.tab
-    const dateProperty = (s.dateProperty ?? '').trim() || 'date'
-    const all = readEntries(this.app, dash.source, dateProperty)
-    const props = discoverProperties(all, [...(s.ignoredProperties ?? []), dateProperty.toLowerCase()])
-    const dims = [
-      ...props.map(p => ({ id: p.id, name: p.name, notes: p.entries })),
-      ...BUILTIN_DIMENSIONS.map(d => ({ id: d.id, name: d.name, notes: all.length })),
-    ]
-    const exists = (id: string) => dims.some(d => d.id === id)
-    // A tracked property that no note has (yet) falls back to the most used one, without saving
-    const tracked = exists(tab.tracked) ? tab.tracked : (props[0]?.id ?? '@weekday')
-    const entries = applyFilters(entriesSince(all, this.since()), tab.filters ?? [])
+    return buildModel(this.app, {
+      source: this.dash.source,
+      dateProperty: s.dateProperty,
+      ignoredProperties: s.ignoredProperties,
+      tracked: this.tab.tracked,
+      compare: this.tab.compare,
+      filters: this.tab.filters,
+      range: this.dash.range,
+      valueColors: this.dash.valueColors,
+    })
+  }
 
-    const fullTally = countValues(entries, e => valuesOf(e, tracked))
-    const { order, colors } = this.colorsFor(tracked, fullTally)
-    // Many values (dozens of teas or songs): the top ones keep a color, the rest are "Other"
-    const kept = limitValues(order, fullTally, dash.valueColors?.[tracked] ?? {}, MAX_SERIES)
-    const hasOther = kept.size < order.length
-    const other: JournalValue = { key: '__other__', label: 'Other' }
-    const trackedOf = (e: JournalEntry): JournalValue[] => {
-      const values = valuesOf(e, tracked)
-      if (!hasOther) return values
-      const out = values.filter(v => kept.has(v.key))
-      return out.length < values.length ? [...out, other] : out
+  private dimName(dims: Dim[], id: string): string {
+    return dimName(dims, id)
+  }
+
+  /** Draws cards for this render; its charts are destroyed with the render's others. */
+  private get drawer(): CardDrawer {
+    if (!this.insDrawer) {
+      this.insDrawer = new CardDrawer({
+        valueMode: this.dash.valueMode ?? 'percent',
+        rangeMonths: rangeMonths(this.dash.range),
+        valueColors: this.dash.valueColors,
+        onFilter: (dim, value, label) => this.addFilter(dim, value, label),
+      })
     }
-    const trackedTally = countValues(entries, trackedOf)
-    const labels = new Map(fullTally.map(v => [v.key, v.label]))
-    const series: Series[] = order.filter(k => kept.has(k)).map(key => ({ key, label: labels.get(key) ?? key, color: colors.get(key)! }))
-    if (hasOther) series.push({ key: '__other__', label: 'Other', color: OTHER_COLOR })
-
-    return {
-      all,
-      entries,
-      dims,
-      tracked,
-      trackedName: this.dimName(dims, tracked),
-      compare: (tab.compare ?? this.autoCompare(props.map(p => p.id), tracked)).filter(id => id !== tracked && exists(id)),
-      series,
-      trackedTally,
-      trackedOf,
-    }
+    return this.insDrawer
   }
 
-  /** For a new dashboard: its most used properties, then the most used linked ones. */
-  private autoCompare(propIds: string[], tracked: string): string[] {
-    const others = propIds.filter(id => id !== tracked)
-    return [
-      ...others.filter(id => dimensionKind(id) === 'property').slice(0, 3),
-      ...others.filter(id => dimensionKind(id) === 'linked').slice(0, 2),
-    ]
-  }
-
-  /** A dimension's values in display order, with the chosen colors (Settings' valueColors) or palette ones. */
-  private colorsFor(dim: string, tally: Tally[]): { order: string[]; colors: Map<string, string> } {
-    return colorValues(orderValues(tally, dim), this.dash.valueColors?.[dim] ?? {}, getThemeColors().palette)
-  }
-
-  private dimName(dims: { id: string; name: string; notes: number }[], id: string): string {
-    return dims.find(d => d.id === id)?.name ?? builtinDimension(id)?.name ?? id
-  }
+  private insDrawer: CardDrawer | null = null
 
   render(): void {
     const { contentEl } = this
@@ -287,8 +180,8 @@ export class InsightsView extends ItemView {
       ...this.rightCards(m).map(c => ({ ...c, column: 'right' as Column })),
     ]
     const layout = layoutColumns(cards, this.tab.cardColumns ?? {}, this.tab.cardOrder ?? [])
-    this.renderColumn(left, 'left', layout, cards)
-    this.renderColumn(right, 'right', layout, cards)
+    this.renderColumn(left, 'left', layout, cards, m)
+    this.renderColumn(right, 'right', layout, cards, m)
     if (this.insCustomizing) this.enableDragging(left, right)
 
     contentEl.scrollTop = scrollTop
@@ -478,14 +371,14 @@ export class InsightsView extends ItemView {
   private leftCards(m: Model): { id: string; name: string; half?: boolean; draw: (card: HTMLElement) => void }[] {
     const tracked = m.trackedName.toLowerCase()
     const cards = [
-      { id: 'links', name: `What goes with your ${tracked}`, draw: (c: HTMLElement) => this.drawLinks(c, m) },
-      { id: 'trend', name: sentence(`${tracked} over time`), draw: (c: HTMLElement) => this.drawTrendCard(c, m) },
+      { id: 'links', name: `What goes with your ${tracked}`, draw: (c: HTMLElement) => this.drawer.drawLinks(c, m) },
+      { id: 'trend', name: sentence(`${tracked} over time`), draw: (c: HTMLElement) => this.drawer.drawTrendCard(c, m) },
       ...m.compare.map(dim => ({
         id: `split:${dim}`,
         // Date breakdowns are a few columns: half width, so two sit side by side
         half: dimensionKind(dim) === 'date',
         name: sentence(`${tracked} by ${this.dimName(m.dims, dim).toLowerCase()}`),
-        draw: (c: HTMLElement) => this.drawSplit(c, m, dim),
+        draw: (c: HTMLElement) => this.drawer.drawSplit(c, m, dim),
       })),
     ]
     return cards
@@ -495,7 +388,7 @@ export class InsightsView extends ItemView {
     return [m.tracked, ...m.compare.filter(d => dimensionKind(d) !== 'date')].map(dim => ({
       id: `pie:${dim}`,
       name: this.dimName(m.dims, dim),
-      draw: (c: HTMLElement) => this.drawPieCard(c, m, dim),
+      draw: (c: HTMLElement) => this.drawer.drawPieCard(c, m, dim),
     }))
   }
 
@@ -504,12 +397,23 @@ export class InsightsView extends ItemView {
     column: Column,
     layout: Record<Column, string[]>,
     cards: { id: string; name: string; half?: boolean; draw: (card: HTMLElement) => void }[],
+    m: Model,
   ) {
     const ids = layout[column]
     const visible = ids.filter(id => !this.isHidden(id))
     for (const id of visible) {
       const card = cards.find(c => c.id === id)!
       const el = this.card(parent, card.name, id, card.half ? 'ins-card-half' : undefined)
+      const embed = this.embedFor(id, m)
+      if (embed && !this.insCustomizing) {
+        const title = el.querySelector<HTMLElement>('.ins-card-title')
+        if (title) {
+          this.iconButton(title.createDiv('ins-card-controls ins-embed-btn'), 'code-2', 'Copy as embed, to show this card in a note', false, () => {
+            void navigator.clipboard.writeText('```insights\n' + embed + '\n```\n')
+              .then(() => new Notice('Copied. Paste it into any note to show this card there.'))
+          })
+        }
+      }
       if (this.insCustomizing) {
         const title = el.querySelector<HTMLElement>('.ins-card-title')
         if (title) {
@@ -534,6 +438,26 @@ export class InsightsView extends ItemView {
       }
       card.draw(el)
     }
+  }
+
+  /** The `insights` block text that shows this card in a note (null for cards that can't be embedded). */
+  private embedFor(id: string, m: Model): string | null {
+    const name = (dim: string) => this.dimName(m.dims, dim)
+    const base = {
+      notes: this.dash.source,
+      of: '',
+      track: name(m.tracked),
+      compare: [] as string[],
+      filters: this.tab.filters.map(f => ({ dim: name(f.dim), value: f.label })),
+      range: this.dash.range,
+      bars: this.dash.valueMode ?? 'percent',
+      title: '',
+    }
+    if (id === 'links') return writeEmbed({ ...base, show: 'links', compare: m.compare.map(name) })
+    if (id === 'trend') return writeEmbed({ ...base, show: 'trend' })
+    if (id.startsWith('split:')) return writeEmbed({ ...base, show: 'breakdown', of: name(id.slice(6)) })
+    if (id.startsWith('pie:')) return writeEmbed({ ...base, show: 'count', of: name(id.slice(4)) })
+    return null
   }
 
   /** Customize mode: drag cards by their handle, within or between the columns. */
@@ -696,7 +620,7 @@ export class InsightsView extends ItemView {
       const top = row.createDiv('ins-row-top')
       const date = dateText(e.date)
       top.createSpan({ text: `${date} · ${weekdayName(e.date)}`, cls: 'ins-row-date' })
-      for (const v of valuesOf(e, m.tracked)) this.chip(top, v.label, colorOf.get(v.key) ?? OTHER_COLOR)
+      for (const v of valuesOf(e, m.tracked)) this.drawer.chip(top, v.label, colorOf.get(v.key) ?? OTHER_COLOR)
       if (!e.title.includes(date)) row.createDiv({ text: e.title, cls: 'ins-row-title' })
       const details = m.compare.filter(d => dimensionKind(d) !== 'date').flatMap(d => valuesOf(e, d).map(v => v.label))
       if (details.length) row.createDiv({ text: details.join(' · '), cls: 'ins-row-details' })
@@ -709,154 +633,6 @@ export class InsightsView extends ItemView {
         open()
       })
     }
-  }
-
-  private drawLinks(card: HTMLElement, m: Model) {
-    const tracked = m.trackedName.toLowerCase()
-    card.createDiv({
-      text: `Groups where one ${tracked} value shows up clearly more often than usual (3 or more notes). Click one to filter by it.`,
-      cls: 'ins-hint',
-    })
-    const overall = overallBreakdown(m.entries, m.trackedOf, 'All notes')
-    const links: Link[] = findLinks(m.compare.map(dim => ({
-      id: dim,
-      name: this.dimName(m.dims, dim),
-      groups: breakdownByDimension(m.entries, dim, m.trackedOf),
-    })), overall)
-    if (links.length === 0) {
-      card.createEl('p', { text: 'Nothing stands out yet. Compare with more properties, or check back after a few more notes.', cls: 'ins-no-data' })
-      return
-    }
-    for (const l of links) {
-      const series = m.series.find(s => s.key === l.valueKey)
-      const row = card.createDiv('ins-link')
-      row.setAttribute('role', 'button')
-      row.tabIndex = 0
-      const what = row.createDiv('ins-link-group')
-      what.createSpan({ text: `${l.dimension}: `, cls: 'ins-link-dim' })
-      what.createSpan({ text: l.group })
-      this.chip(row, series?.label ?? l.valueKey, series?.color)
-      row.createSpan({ text: `${Math.round(l.share * 100)}% vs ${Math.round(l.baseline * 100)}% overall`, cls: 'ins-link-share' })
-      row.createSpan({ text: entriesText(l.entries), cls: 'ins-link-n' })
-      row.addEventListener('click', () => this.addFilter(l.dimensionId, l.groupKey, l.group))
-    }
-  }
-
-  private drawTrendCard(card: HTMLElement, m: Model) {
-    card.addClass('ins-trend-card')
-    if (m.series.length === 0) {
-      card.createEl('p', { text: `No notes in this period have a ${m.trackedName} value.`, cls: 'ins-no-data' })
-      return
-    }
-    this.legend(card, m.series)
-    const now = yearMonthOf(new Date())
-    let count = this.rangeMonths()
-    if (count === null) {
-      const first = m.all.length ? yearMonthOf(m.all[m.all.length - 1].date) : now
-      const [fy, fm] = first.split('-').map(Number)
-      const [ny, nm] = now.split('-').map(Number)
-      count = Math.max(1, (ny - fy) * 12 + (nm - fm) + 1)
-      // Years of notes: one column per year
-      if (count > MAX_TREND_MONTHS) {
-        const byYear = breakdownByDimension(m.entries, '@year', m.trackedOf)
-        this.charts.push(drawTrend(card.createDiv('ins-chart-wrap'),
-          byYear.map(g => ({ label: g.label, tooltip: g.label, mix: g.mix, entries: g.entries })), m.series,
-          { onColumnClick: (i) => this.addFilter('@year', byYear[i].key, byYear[i].label) }))
-        return
-      }
-    }
-    const byMonth = new Map(breakdownByGroup(m.entries,
-      e => [{ key: yearMonthOf(e.date), label: '' }], m.trackedOf).map(g => [g.key, g]))
-    const months = getMonthRangeEndingAt(now, count).map(ym => ({
-      label: formatMonth(ym),
-      tooltip: formatMonth(ym, true),
-      mix: byMonth.get(ym)?.mix ?? new Map<string, number>(),
-      entries: byMonth.get(ym)?.entries ?? 0,
-    }))
-    this.charts.push(drawTrend(card.createDiv('ins-chart-wrap'), months, m.series))
-  }
-
-  private drawSplit(card: HTMLElement, m: Model, dim: string) {
-    const groups: Breakdown[] = breakdownByDimension(m.entries, dim, m.trackedOf)
-    if (groups.length === 0 || m.series.length === 0) {
-      card.createEl('p', { text: 'No data in this period', cls: 'ins-no-data' })
-      return
-    }
-    this.legend(card, m.series)
-    const mode = this.dash.valueMode ?? 'percent'
-    // Date groups are few and in order: upright columns, like the month chart
-    if (builtinDimension(dim)) {
-      // In % mode an "All" column first gives the usual mix to compare with
-      const columns = mode === 'percent' ? [overallBreakdown(m.entries, m.trackedOf, 'All'), ...groups] : groups
-      const chart = drawTrend(card.createDiv('ins-chart-wrap ins-columns-wrap'),
-        columns.map(g => ({ label: g.label, tooltip: g.label === 'All' ? 'All notes' : g.label, mix: g.mix, entries: g.entries })),
-        m.series,
-        { mode, onColumnClick: (i) => { if (columns[i].key !== '__all__') this.addFilter(dim, columns[i].key, columns[i].label) } })
-      this.charts.push(chart)
-      return
-    }
-    const rows = [overallBreakdown(m.entries, m.trackedOf, 'All notes'), ...groups.slice(0, MAX_GROUPS)]
-    this.charts.push(drawShares(card, rows, m.series, mode, (i) => {
-      if (i > 0) this.addFilter(dim, rows[i].key, rows[i].label)
-    }))
-    if (groups.length > MAX_GROUPS) {
-      card.createDiv({ text: `Showing the ${MAX_GROUPS} biggest of ${groups.length} groups`, cls: 'ins-hint ins-more' })
-    }
-  }
-
-  private drawPieCard(card: HTMLElement, m: Model, dim: string) {
-    const tally = countValues(m.entries, e => valuesOf(e, dim))
-    if (tally.length === 0) {
-      card.createEl('p', { text: 'No data in this period', cls: 'ins-no-data' })
-      return
-    }
-    if (tally.length >= TOP_LIST_AT) {
-      this.drawTopList(card, tally, dim, dim === m.tracked ? new Map(m.series.map(s => [s.key, s.color])) : undefined)
-      return
-    }
-    const labels = new Map(tally.map(v => [v.key, v.label]))
-    const { order, colors } = dim === m.tracked
-      ? { order: m.series.map(s => s.key), colors: new Map(m.series.map(s => [s.key, s.color])) }
-      : this.colorsFor(dim, tally)
-    const counts = new Map(order.map(key => [key, tally.find(v => v.key === key)?.count ?? 0]))
-    this.charts.push(drawPie(card, counts,
-      (key) => { if (key) this.addFilter(dim, key, labels.get(key) ?? key) },
-      (key) => labels.get(key) ?? key,
-      (key) => colors.get(key)))
-  }
-
-  /** Values ranked by how many notes have them (e.g. most frequent songs); click one to filter by it. */
-  private drawTopList(card: HTMLElement, tally: Tally[], dim: string, colors?: Map<string, string>) {
-    card.addClass('ins-top-card')
-    const max = tally[0].count
-    const list = card.createDiv('ins-top-list')
-    for (const v of tally.slice(0, TOP_LIST_ROWS)) {
-      const row = list.createDiv('ins-top-row')
-      row.setAttribute('role', 'button')
-      row.tabIndex = 0
-      row.createDiv({ text: v.label, cls: 'ins-top-label' })
-      const bar = row.createDiv('ins-top-bar')
-      const fill = bar.createDiv('ins-top-fill')
-      fill.setCssProps({ width: `${Math.max(2, (v.count / max) * 100)}%` })
-      const color = colors?.get(v.key)
-      if (color) fill.setCssProps({ 'background-color': color })
-      row.createDiv({ text: String(v.count), cls: 'ins-top-count' })
-      row.addEventListener('click', () => this.addFilter(dim, v.key, v.label))
-    }
-    if (tally.length > TOP_LIST_ROWS) {
-      card.createDiv({ text: `Top ${TOP_LIST_ROWS} of ${tally.length}`, cls: 'ins-hint ins-more' })
-    }
-  }
-
-  private chip(parent: HTMLElement, label: string, color: string | undefined) {
-    const chip = parent.createSpan('ins-chip')
-    chip.createSpan({ cls: 'ins-legend-dot' }).setCssProps({ 'background-color': color ?? 'var(--text-faint)' })
-    chip.createSpan({ text: label })
-  }
-
-  private legend(parent: HTMLElement, series: Series[]) {
-    const legend = parent.createDiv('ins-legend')
-    for (const s of series) this.chip(legend, s.label, s.color)
   }
 
   /** Opens Obsidian search for the dashboard's notes matching the property filters (others can't be searched). */

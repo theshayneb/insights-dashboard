@@ -25,8 +25,9 @@ npm run build
 
 - Settings live in the plugin's `data.json` (synced by Obsidian Sync).
 - `src/journal.ts` is pure (no Obsidian imports) and unit-tested in `tests/`; the view is `src/view/InsightsView.ts`.
-- Dimension ids: a property is its lower-case name (`mood`); a linked note's property is `sotd>artist`; linked notes by tag are `@linked:tea`; dates are `@weekday`, `@season`, `@year`, `@month`.
+- Dimension ids: a property is its lower-case name (`mood`); a linked note's property is `sotd>artist`; a link property's links to notes with a tag are `related#song`; linked notes by tag are `@linked:tea`; dates are `@weekday`, `@season`, `@year`, `@month`.
 - Settings hold several dashboards (`dashboards`, `activeDashboard`), each with tabs (`tabs`, `activeTab`) holding a question's tracked/compare/filters/card layout; `migrateSettings` upgrades older data.json shapes, so keep it working for them.
+- Model building and card drawing are shared by the dashboard and the `insights` embed block (`src/view/cards.ts`, `src/view/EmbedBlock.ts`); the block's text format is in `src/embed.ts` (parse and write, unit-tested). Keep "Copy as embed" output parseable.
 - `src/pennywallet.ts` reads PennyWallet (Mod) month files (`<folder>/YYYY-MM.md`, a Markdown table per month; see PennyWallet's `parseRow` for the column variants) for the `insights-purchases` block in `src/view/PurchasesBlock.ts`.
 - The owner's vault has hundreds of properties (many from linked notes): never list them all in the UI; use the picker (`DimensionPicker`: search plus collapsible alphabetical sections from `groupDimensions`).
 - CSS classes use the `ins-` prefix. UI text is English and sentence case (the Obsidian lint rules require it).

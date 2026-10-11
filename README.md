@@ -30,6 +30,32 @@ Each dashboard has **tabs**, one per question (e.g. "Mood", "Teas"): **+** adds 
 - A property that links to notes, like `SOTD: "[[Blue Song]]"`, brings in the linked notes' properties: **SOTD → Artist**.
 - Notes linked anywhere in a note (properties or text) are grouped by their tags: **Linked #tea**, **Linked #wardrobe_item**.
 
+## Cards in notes
+
+Every dashboard card has a **Copy as embed** button (top right, on hover). Paste the result into any note to show that card there, kept up to date:
+
+````
+```insights
+notes: #journal_entry
+show: count
+of: Related → #song
+```
+````
+
+| Option | Meaning |
+| --- | --- |
+| `notes` | `#tag`, `Folder/` or `all` |
+| `show` | `count` (pie or ranked list), `breakdown`, `trend` or `links` ("What goes with …") |
+| `of` | what to count, or the groups of a breakdown |
+| `track` | what breakdowns, trends and links are about (e.g. `Mood`) |
+| `compare` | for `links`: what to look in, comma-separated |
+| `filter` | `Property = value`, one per line |
+| `range` | `3 months`, `6 months`, `12 months` or `all` |
+| `bars` | `count` for counts instead of % |
+| `title` | your own title |
+
+Properties are written as on the dashboard: `Weather`, `SOTD → Artist`, `Related → #song` (only the Related links to notes tagged #song), `Linked #tea`, `Day of week`.
+
 ## Purchases from PennyWallet
 
 In any note, add

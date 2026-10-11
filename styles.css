@@ -898,6 +898,45 @@
   color: var(--color-green);
 }
 
+/* Copy as embed: shown when the card is hovered (always on touch screens) */
+.ins-embed-btn {
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.ins-card:hover .ins-embed-btn,
+.ins-embed-btn:focus-within {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .ins-embed-btn {
+    opacity: 1;
+  }
+}
+
+/* An embedded card in a note */
+.ins-embed {
+  margin: 0.5em 0;
+}
+
+.ins-embed .ins-trend-card .ins-chart-wrap,
+.ins-embed > .ins-chart-wrap {
+  height: 260px;
+}
+
+.ins-embed-source {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.ins-embed-problem ul {
+  margin: 0 0 8px;
+  color: var(--text-error);
+  font-size: 13px;
+}
+
 /* Dragging cards (customize mode) */
 .ins-drag-handle {
   display: inline-flex;
